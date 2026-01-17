@@ -15,10 +15,6 @@ type
     cursor: CursorBase
     segments: seq[string]
 
-  ScriptRef* = object
-    cursor: CursorBase
-    segments: seq[string]
-
 proc cursor*(db: Database): Cursor =
   Cursor(db: db)
 
@@ -28,32 +24,17 @@ proc database*(cur: Cursor): Database =
 proc initNamespaceRef*(cursor: CursorBase, segments: seq[string]): NamespaceRef =
   NamespaceRef(cursor: cursor, segments: segments)
 
-proc initScriptRef*(cursor: CursorBase, segments: seq[string]): ScriptRef =
-  ScriptRef(cursor: cursor, segments: segments)
-
 proc cursorBase*(ns: NamespaceRef): CursorBase =
   ns.cursor
 
 proc segments*(ns: NamespaceRef): seq[string] =
   ns.segments
 
-proc cursorBase*(sr: ScriptRef): CursorBase =
-  sr.cursor
-
-proc segments*(sr: ScriptRef): seq[string] =
-  sr.segments
-
-proc scriptId*(sr: ScriptRef): ScriptId =
-  makeScriptId(sr.segments)
-
 template `.`*(cur: Cursor, field: untyped): NamespaceRef =
   initNamespaceRef(cur, @[astToStr(field)])
 
-template `.`*(ns: NamespaceRef, field: untyped): ScriptRef =
-  initScriptRef(ns.cursorBase, ns.segments & @[astToStr(field)])
-
-template `.`*(sr: ScriptRef, field: untyped): ScriptRef =
-  initScriptRef(sr.cursorBase, sr.segments & @[astToStr(field)])
+template `.`*(ns: NamespaceRef, field: untyped): NamespaceRef =
+  initNamespaceRef(ns.cursorBase, ns.segments & @[astToStr(field)])
 
 proc identNameOrError(node: NimNode, what: string): string =
   case node.kind

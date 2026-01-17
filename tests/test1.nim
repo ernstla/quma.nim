@@ -17,19 +17,18 @@ suite "quma":
     let q = initQuery(cur, "users/all", initScriptArgs())
     check q != nil
 
-  test "dotOperators builds namespace + script refs":
+  test "dotOperators builds nested namespaces and scripts":
     let db = initDatabase("sqlite:///:memory:")
     let cur = db.cursor()
 
-    let ns = cur.users
-    check ns.segments == @["users"]
+    let ns = cur.users.admin
+    check ns.segments == @["users", "admin"]
 
-    let sr = cur.users.all
-    check sr.segments == @["users", "all"]
-    check sr.scriptId() == "users/all"
+    let q1 = cur.users.all()
+    check q1.scriptId() == "users/all"
 
-    let q = cur.users.all()
-    check q.scriptId() == "users/all"
+    let q2 = cur.users.admin.list()
+    check q2.scriptId() == "users/admin/list"
 
   test "script call captures positional and named args":
     let db = initDatabase("sqlite:///:memory:")
