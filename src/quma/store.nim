@@ -1,3 +1,5 @@
+import std/strutils
+
 import ./errors
 
 type
@@ -10,6 +12,9 @@ type
     origin*: string
 
   ScriptStore* = ref object of RootObj
+
+proc makeScriptId*(segments: openArray[string]): ScriptId =
+  segments.join("/")
 
 method hasNamespace*(store: ScriptStore, name: string): bool {.base.} =
   false

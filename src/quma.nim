@@ -1,3 +1,5 @@
+{.experimental: "dotOperators".}
+
 import quma/[errors, args, store, database, query, cursor]
 
 export errors
