@@ -1,12 +1,17 @@
-# This is just an example to get you started. You may wish to put all of your
-# tests into a single file, or separate them into multiple `test1`, `test2`
-# etc. files (better names are recommended, just make sure the name starts with
-# the letter 't').
-#
-# To run these tests, simply execute `nimble test`.
-
 import unittest
 
 import quma
-test "can add":
-  check add(5, 5) == 10
+
+suite "quma":
+  test "can construct Database and Cursor":
+    let db = initDatabase("sqlite:///:memory:")
+    check db != nil
+
+    let cur = db.cursor()
+    check cur != nil
+
+  test "can construct Query":
+    let db = initDatabase("sqlite:///:memory:")
+    let cur = db.cursor()
+    let q = initQuery(cur, "users/all", initScriptArgs())
+    check q != nil
