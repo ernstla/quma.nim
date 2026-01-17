@@ -1,0 +1,52 @@
+# Data and dependencies (local reference materials)
+data/
+deps/
+
+# Nim configuration (local)
+nim.cfg
+nimble.paths
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Nim cache and build directories
+nimcache/
+nimblecache/
+.nimble/
+
+# Build artifacts
+*.o
+*.a
+*.lib
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Documentation build
+docs/api/
+
+# Test artifacts
+*.log
+test_results/
+
+# Compiled test/example binaries (no extension on Unix)
+tests/test_all
+tests/core/test_app
+tests/webview/test_ipc
+tests/webview/test_types
+examples/hello_world
+examples/html_content
+examples/ipc_demo
+examples/tray_demo
+examples/webview_tray
