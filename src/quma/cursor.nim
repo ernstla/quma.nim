@@ -1,25 +1,42 @@
 {.experimental: "dotOperators".}
 
 import std/macros
+import std/tables
 
 import ./args
 import ./database
+import ./errors
+import ./params
 import ./query
+import ./sqliteDb
 import ./store
 
 type
   Cursor* = ref object of CursorBase
     db: Database
+    conn: SqliteConn
 
   NamespaceRef* = object
     cursor: CursorBase
     segments: seq[string]
 
 proc cursor*(db: Database): Cursor =
-  Cursor(db: db)
+  let path = db.sqlitePathOrError()
+  Cursor(db: db, conn: openSqlite(path))
 
 proc database*(cur: Cursor): Database =
   cur.db
+
+proc close*(cur: Cursor) =
+  var c = cur.conn
+  c.close()
+  cur.conn = c
+
+proc exec*(cur: Cursor, sqlText: string) =
+  discard cur.conn.execPrepared(sqlText)
+
+proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
+  discard cur.conn.execPrepared(sqlText, bindValues)
 
 proc initNamespaceRef*(cursor: CursorBase, segments: seq[string]): NamespaceRef =
   NamespaceRef(cursor: cursor, segments: segments)
@@ -104,3 +121,20 @@ macro `.()`*(nsExpr: NamespaceRef, field: untyped, args: varargs[untyped]): unty
         makeScriptId(`nsSym`.segments & @[`scriptNameLit`]),
         `argsSym`,
       )
+
+method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Row] =
+  let store = cur.db.scriptStore
+  if store.isNil:
+    raise newException(QumaError, "No ScriptStore configured")
+
+  let script = store.getScript(scriptId)
+  let compiled = compileNamedSql(script.sql)
+
+  var bindValues: seq[ArgValue] = @[]
+  for name in compiled.names:
+    if not scriptArgs.named.hasKey(name):
+      raiseMissingParam(name, scriptId)
+    bindValues.add scriptArgs.named[name]
+
+  let rows = cur.conn.execPrepared(compiled.sql, bindValues)
+  rows

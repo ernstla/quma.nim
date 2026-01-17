@@ -1,3 +1,6 @@
+import std/strutils
+
+import ./errors
 import ./store
 
 type Database* = ref object
@@ -12,3 +15,12 @@ proc uri*(db: Database): string =
 
 proc scriptStore*(db: Database): ScriptStore =
   db.store
+
+proc sqlitePathOrError*(db: Database): string =
+  if db.uri == "sqlite:///:memory:":
+    return ":memory:"
+
+  if db.uri.startsWith("sqlite:///"):
+    return db.uri["sqlite:///".len .. ^1]
+
+  raise newException(QumaError, "Unsupported database uri: " & db.uri)
