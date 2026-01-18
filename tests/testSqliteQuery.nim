@@ -23,7 +23,7 @@ suite "SQLite Query":
     cur.exec("insert into users(id, name) values (2, 'Bob');")
 
     expect QueryNoRowsError:
-      discard cur.users.get_by_id(id = 999, name = "Ada").one()
+      discard cur.users.getById(id = 999, name = "Ada").one()
 
     expect QueryTooManyRowsError:
       discard cur.users.all().one()
@@ -39,11 +39,11 @@ suite "SQLite Query":
 
     cur.exec("insert into users(id, name) values (2, 'Bob');")
 
-    let r = cur.users.get_by_id(id = 1, name = "Ada", extra = "ignore").one()
+    let r = cur.users.getById(id = 1, name = "Ada", extra = "ignore").one()
     check r[0] == "1"
 
     expect QueryError:
-      discard cur.users.get_by_id().one()
+      discard cur.users.getById().one()
 
   test "typed query mapping":
     let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
@@ -59,12 +59,12 @@ suite "SQLite Query":
     check ids.len == 2
     check ids[0].id == 1
 
-    let profile = cur.users.all_profiles[UserProfile]().first()
+    let profile = cur.users.allProfiles[UserProfile]().first()
     check profile.isSome
     check profile.get.id == 1
     check profile.get.name == "Ada"
 
-    let missing = cur.users.get_by_id(id = 999, name = "Ada").first()
+    let missing = cur.users.getById(id = 999, name = "Ada").first()
     check missing.isNone
 
   test "template rendering with conditionals":
@@ -110,11 +110,11 @@ suite "SQLite Query":
     cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
     cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
 
-    # Uses search_autodetect.sql which has template syntax in a .sql file
-    let all = cur.users.search_autodetect(filterActive = false).all()
+    # Uses searchAutodetect.sql which has template syntax in a .sql file
+    let all = cur.users.searchAutodetect(filterActive = false).all()
     check all.len == 2
 
-    let activeOnly = cur.users.search_autodetect(filterActive = true, active = 1).all()
+    let activeOnly = cur.users.searchAutodetect(filterActive = true, active = 1).all()
     check activeOnly.len == 1
 
   test "strictTemplates rejects template syntax in .sql files":
@@ -125,9 +125,9 @@ suite "SQLite Query":
 
     cur.exec("create table users(id int, name text, active int);")
 
-    # Should raise TemplateError because search_autodetect.sql has template syntax
+    # Should raise TemplateError because searchAutodetect.sql has template syntax
     expect TemplateError:
-      discard cur.users.search_autodetect(filterActive = false).all()
+      discard cur.users.searchAutodetect(filterActive = false).all()
 
   test "strictTemplates allows .nsql files":
     let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
