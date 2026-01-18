@@ -2,6 +2,7 @@ import std/[algorithm, os, strutils, tables, sets]
 import std/macros
 
 import ./errors
+import ./params
 
 type
   ScriptId* = string
@@ -11,6 +12,7 @@ type
     sql*: string
     isTemplate*: bool
     origin*: string
+    compiled*: CompiledNamedSql
 
   ScriptStore* = ref object of RootObj
 
@@ -132,6 +134,27 @@ macro embedSqlDir*(dir: static[string]): untyped =
     let entry = selected[idPath]
     let sqlText = staticRead(entry.path)
     let isTemplate = entry.ext == ".msql"
+    # Compile the SQL at compile-time
+    let compiled = compileNamedSql(sqlText)
+    # Build the CompiledNamedSql object constructor
+    var nameSetElements: seq[NimNode] = @[]
+    for name in compiled.nameSet:
+      nameSetElements.add newLit(name)
+    let nameSetNode =
+      if nameSetElements.len == 0:
+        newCall(newTree(nnkBracketExpr, bindSym"initHashSet", ident"string"))
+      else:
+        newCall(bindSym"toHashSet", newTree(nnkBracket, nameSetElements))
+    var namesNode = newTree(nnkPrefix, ident"@", newTree(nnkBracket))
+    for name in compiled.names:
+      namesNode[1].add newLit(name)
+    let compiledNode = newTree(
+      nnkObjConstr,
+      ident"CompiledNamedSql",
+      newTree(nnkExprColonExpr, ident"sql", newLit(compiled.sql)),
+      newTree(nnkExprColonExpr, ident"names", namesNode),
+      newTree(nnkExprColonExpr, ident"nameSet", nameSetNode),
+    )
     entries.add newTree(
       nnkObjConstr,
       ident"Script",
@@ -139,5 +162,6 @@ macro embedSqlDir*(dir: static[string]): untyped =
       newTree(nnkExprColonExpr, ident"sql", newLit(sqlText)),
       newTree(nnkExprColonExpr, ident"isTemplate", newLit(isTemplate)),
       newTree(nnkExprColonExpr, ident"origin", newLit(entry.path)),
+      newTree(nnkExprColonExpr, ident"compiled", compiledNode),
     )
   result = newCall(ident"initEmbeddedScriptStore", newTree(nnkBracket, entries))

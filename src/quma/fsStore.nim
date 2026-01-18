@@ -1,6 +1,7 @@
 import std/[os, tables]
 
 import ./errors
+import ./params
 import ./store
 
 type FsScriptStore* = ref object of ScriptStore
@@ -52,16 +53,28 @@ method getScript*(store: FsScriptStore, id: ScriptId): Script =
   for dir in store.sqlDirs:
     let sqlPath = scriptFilePath(dir, id)
     if fileExists(sqlPath):
-      let script =
-        Script(id: id, sql: readFile(sqlPath), isTemplate: false, origin: sqlPath)
+      let sqlText = readFile(sqlPath)
+      let script = Script(
+        id: id,
+        sql: sqlText,
+        isTemplate: false,
+        origin: sqlPath,
+        compiled: compileNamedSql(sqlText),
+      )
       if store.cacheEnabled:
         store.cache[id] = script
       return script
 
     let tmplPath = templateFilePath(dir, id)
     if fileExists(tmplPath):
-      let script =
-        Script(id: id, sql: readFile(tmplPath), isTemplate: true, origin: tmplPath)
+      let sqlText = readFile(tmplPath)
+      let script = Script(
+        id: id,
+        sql: sqlText,
+        isTemplate: true,
+        origin: tmplPath,
+        compiled: compileNamedSql(sqlText),
+      )
       if store.cacheEnabled:
         store.cache[id] = script
       return script

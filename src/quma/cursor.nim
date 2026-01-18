@@ -323,7 +323,7 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
     raise newException(QumaError, "No ScriptStore configured")
 
   let script = store.getScript(scriptId)
-  let compiled = compileNamedSql(script.sql)
+  let compiled = script.compiled
 
   var filteredNamed = initTable[string, ArgValue]()
   for name in scriptArgs.named.keys:

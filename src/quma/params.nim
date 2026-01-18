@@ -8,6 +8,10 @@ type CompiledNamedSql* = object
   names*: seq[string]
   nameSet*: HashSet[string]
 
+proc initCompiledNamedSql*(): CompiledNamedSql =
+  ## Creates an empty CompiledNamedSql for uncompiled scripts.
+  CompiledNamedSql(sql: "", names: @[], nameSet: initHashSet[string]())
+
 proc compileNamedSql*(sql: string): CompiledNamedSql =
   var outSql = newStringOfCap(sql.len)
   var names: seq[string] = @[]
