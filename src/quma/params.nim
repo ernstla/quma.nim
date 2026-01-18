@@ -1,14 +1,16 @@
-import std/strutils
+import std/[strutils, sets]
 
 import ./errors
 
 type CompiledNamedSql* = object
   sql*: string
   names*: seq[string]
+  nameSet*: HashSet[string]
 
 proc compileNamedSql*(sql: string): CompiledNamedSql =
   var outSql = newStringOfCap(sql.len)
   var names: seq[string] = @[]
+  var nameSet = initHashSet[string]()
 
   type State = enum
     stNormal
@@ -56,6 +58,7 @@ proc compileNamedSql*(sql: string): CompiledNamedSql =
 
             let name = sql[(i + 1) ..< j]
             names.add name
+            nameSet.incl name
             outSql.add '?'
             i = j
             continue
@@ -96,7 +99,7 @@ proc compileNamedSql*(sql: string): CompiledNamedSql =
         outSql.add c
         inc i
 
-  CompiledNamedSql(sql: outSql, names: names)
+  CompiledNamedSql(sql: outSql, names: names, nameSet: nameSet)
 
 proc raiseMissingParam*(name: string, scriptId: string) {.noreturn.} =
   raise newException(
