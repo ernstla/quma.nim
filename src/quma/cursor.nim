@@ -4,12 +4,13 @@
 import std/[macros, tables, sets]
 
 import ./args
-import ./database
 import ./errors
 import ./params
 import ./query
 import ./sqliteDb
 import ./store
+
+import ./database
 
 type
   Cursor* = ref object of CursorBase
@@ -52,6 +53,24 @@ proc exec*(cur: Cursor, sqlText: string) =
 
 proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
   discard cur.conn.execPrepared(sqlText, bindValues)
+
+proc begin*(cur: Cursor) =
+  cur.exec("begin")
+
+proc commit*(cur: Cursor) =
+  cur.exec("commit")
+
+proc rollback*(cur: Cursor) =
+  cur.exec("rollback")
+
+template transaction*(cur: Cursor, body: untyped) =
+  cur.begin()
+  try:
+    body
+    cur.commit()
+  except:
+    cur.rollback()
+    raise
 
 proc initNamespaceRef*(cursor: CursorBase, segments: seq[string]): NamespaceRef =
   NamespaceRef(cursor: cursor, segments: segments)
