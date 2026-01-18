@@ -49,10 +49,22 @@ proc close*(cur: Cursor) =
   cur.conn = c
 
 proc exec*(cur: Cursor, sqlText: string) =
+  ## Executes SQL without returning results.
   discard cur.conn.execPrepared(sqlText)
 
 proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
+  ## Executes SQL with bind values, without returning results.
   discard cur.conn.execPrepared(sqlText, bindValues)
+
+proc rawQuery*(cur: Cursor, sqlText: string): seq[Row] =
+  ## Executes raw SQL and returns rows. For testing and low-level access.
+  cur.conn.execPrepared(sqlText)
+
+proc rawQuery*(
+    cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]
+): seq[Row] =
+  ## Executes raw SQL with bind values and returns rows. For testing and low-level access.
+  cur.conn.execPrepared(sqlText, bindValues)
 
 proc begin*(cur: Cursor) =
   ## Begins a transaction.
@@ -79,6 +91,45 @@ template transaction*(cur: Cursor, body: untyped) =
   except:
     cur.rollback()
     raise
+
+proc withCursor*(db: Database, body: proc(c: Cursor)) =
+  ## Opens a cursor, executes body, and closes the cursor on exit.
+  ##
+  ## Example:
+  ##   db.withCursor do(c: Cursor):
+  ##     discard c.users.all().run()
+  ##   # cursor is closed here
+  let c = db.cursor()
+  try:
+    body(c)
+  finally:
+    c.close()
+
+proc withCursor*(db: Database, commit: bool, body: proc(c: Cursor)) =
+  ## Opens a cursor with optional auto-commit on successful exit.
+  ## If `commit = true`, wraps body in a transaction: commits on success, rolls back on error.
+  ## The cursor is always closed on exit (success or failure).
+  ##
+  ## Example:
+  ##   db.withCursor(commit = true) do(c: Cursor):
+  ##     c.users.add(name = "Alice").run()
+  ##   # auto-committed on success, rolled back on error
+  let c = db.cursor()
+  if commit:
+    try:
+      c.begin()
+      body(c)
+      c.commit()
+    except:
+      c.rollback()
+      raise
+    finally:
+      c.close()
+  else:
+    try:
+      body(c)
+    finally:
+      c.close()
 
 proc initNamespaceRef*(cursor: CursorBase, segments: seq[string]): NamespaceRef =
   NamespaceRef(cursor: cursor, segments: segments)
