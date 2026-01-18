@@ -48,6 +48,24 @@ The Nim implementation is currently bootstrapping (API and internals are not
 feature-complete yet). The goal is to match the behavior of the Python library
 first, using the PHP port as an additional reference where it differs.
 
+## Embedded Scripts and Overrides
+
+Downstream applications can embed SQL at compile time and overlay local
+filesystem overrides for development.
+
+```nim
+import quma
+
+const embedded = embedSqlDir("sql")
+let devStore = initFsScriptStore(["sql"])
+let store = initOverlayScriptStore(devStore, embedded)
+let db = initDatabase("sqlite:///:memory:", store)
+```
+
+- `embedSqlDir` expects a path relative to the calling file.
+- `initOverlayScriptStore` checks the primary store first, then falls back to
+  the embedded scripts.
+
 ## Development
 
 - Install dependencies: `atlas install` (do not use Nimble)
