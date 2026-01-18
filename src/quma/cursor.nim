@@ -55,15 +55,23 @@ proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
   discard cur.conn.execPrepared(sqlText, bindValues)
 
 proc begin*(cur: Cursor) =
+  ## Begins a transaction.
+  ## Note: Currently uses SQLite syntax. Other backends (PostgreSQL, MySQL)
+  ## may require different commands (e.g., START TRANSACTION).
   cur.exec("begin")
 
 proc commit*(cur: Cursor) =
+  ## Commits the current transaction.
   cur.exec("commit")
 
 proc rollback*(cur: Cursor) =
+  ## Rolls back the current transaction.
   cur.exec("rollback")
 
 template transaction*(cur: Cursor, body: untyped) =
+  ## Executes `body` within a transaction. Commits on success, rolls back on
+  ## any error (including Defects) to ensure connections aren't left with
+  ## open transactions — important for connection-pooled databases.
   cur.begin()
   try:
     body
