@@ -1,7 +1,7 @@
 {.experimental: "dotOperators".}
 {.experimental: "callOperator".}
 
-import std/[macros, tables, sets]
+import std/[macros, tables, sets, strutils]
 
 import ./args
 import ./errors
@@ -48,23 +48,39 @@ proc close*(cur: Cursor) =
   c.close()
   cur.conn = c
 
+proc echoSql(cur: Cursor, sql: string) =
+  ## Prints SQL to stdout if echo is enabled on the database.
+  if cur.db.echo:
+    echo "-".repeat(50)
+    echo sql
+
+proc echoSql(cur: Cursor, sql: string, bindValues: openArray[ArgValue]) =
+  ## Prints mogrified SQL to stdout if echo is enabled on the database.
+  if cur.db.echo:
+    echo "-".repeat(50)
+    echo mogrify(sql, bindValues)
+
 proc exec*(cur: Cursor, sqlText: string) =
   ## Executes SQL without returning results.
   discard cur.conn.execPrepared(sqlText)
+  cur.echoSql(sqlText)
 
 proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
   ## Executes SQL with bind values, without returning results.
   discard cur.conn.execPrepared(sqlText, bindValues)
+  cur.echoSql(sqlText, bindValues)
 
 proc rawQuery*(cur: Cursor, sqlText: string): seq[Row] =
   ## Executes raw SQL and returns rows. For testing and low-level access.
-  cur.conn.execPrepared(sqlText)
+  result = cur.conn.execPrepared(sqlText)
+  cur.echoSql(sqlText)
 
 proc rawQuery*(
     cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]
 ): seq[Row] =
   ## Executes raw SQL with bind values and returns rows. For testing and low-level access.
-  cur.conn.execPrepared(sqlText, bindValues)
+  result = cur.conn.execPrepared(sqlText, bindValues)
+  cur.echoSql(sqlText, bindValues)
 
 proc begin*(cur: Cursor) =
   ## Begins a transaction.
@@ -321,4 +337,5 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
     bindValues.add filteredNamed[name]
 
   let rows = cur.conn.execPrepared(compiled.sql, bindValues)
+  cur.echoSql(compiled.sql, bindValues)
   rows

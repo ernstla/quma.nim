@@ -6,9 +6,13 @@ import ./store
 type Database* = ref object
   uri: string
   store: ScriptStore
+  echoSql: bool
 
-proc initDatabase*(uri: string, store: ScriptStore = nil): Database =
-  Database(uri: uri, store: store)
+proc initDatabase*(uri: string, store: ScriptStore = nil, echo = false): Database =
+  Database(uri: uri, store: store, echoSql: echo)
+
+proc echo*(db: Database): bool =
+  db.echoSql
 
 proc uri*(db: Database): string =
   db.uri

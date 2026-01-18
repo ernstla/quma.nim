@@ -1,5 +1,6 @@
 import std/[strutils, sets]
 
+import ./args
 import ./errors
 
 type CompiledNamedSql* = object
@@ -105,3 +106,32 @@ proc raiseMissingParam*(name: string, scriptId: string) {.noreturn.} =
   raise newException(
     QueryError, "Missing required param '" & name & "' for script: " & scriptId
   )
+
+proc quoteValue(v: ArgValue): string =
+  ## Converts an ArgValue to a SQL-safe string representation for display.
+  case v.kind
+  of avkNull:
+    "NULL"
+  of avkInt:
+    $v.i
+  of avkFloat:
+    $v.f
+  of avkBool:
+    if v.b: "1" else: "0"
+  of avkString:
+    "'" & v.s.replace("'", "''") & "'"
+
+proc mogrify*(sql: string, bindValues: openArray[ArgValue]): string =
+  ## Returns SQL with ? placeholders replaced by quoted values (for display only).
+  ## This is NOT safe for execution - only for debugging output.
+  var output = newStringOfCap(sql.len + bindValues.len * 10)
+  var paramIdx = 0
+
+  for c in sql:
+    if c == '?' and paramIdx < bindValues.len:
+      output.add quoteValue(bindValues[paramIdx])
+      inc paramIdx
+    else:
+      output.add c
+
+  output
