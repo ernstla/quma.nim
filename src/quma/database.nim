@@ -7,12 +7,18 @@ type Database* = ref object
   uri: string
   store: ScriptStore
   echoSql: bool
+  strictTmpl: bool
 
-proc initDatabase*(uri: string, store: ScriptStore = nil, echo = false): Database =
-  Database(uri: uri, store: store, echoSql: echo)
+proc initDatabase*(
+    uri: string, store: ScriptStore = nil, echo = false, strictTemplates = false
+): Database =
+  Database(uri: uri, store: store, echoSql: echo, strictTmpl: strictTemplates)
 
 proc echo*(db: Database): bool =
   db.echoSql
+
+proc strictTemplates*(db: Database): bool =
+  db.strictTmpl
 
 proc uri*(db: Database): string =
   db.uri

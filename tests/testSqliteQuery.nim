@@ -99,3 +99,46 @@ suite "SQLite Query":
       .all()
     check activeAda.len == 1
     check activeAda[0][0] == "1" # id = 1
+
+  test "auto-detect template syntax in .sql files":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+    cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
+
+    # Uses search_autodetect.sql which has template syntax in a .sql file
+    let all = cur.users.search_autodetect(filterActive = false).all()
+    check all.len == 2
+
+    let activeOnly = cur.users.search_autodetect(filterActive = true, active = 1).all()
+    check activeOnly.len == 1
+
+  test "strictTemplates rejects template syntax in .sql files":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store, strictTemplates = true)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+
+    # Should raise TemplateError because search_autodetect.sql has template syntax
+    expect TemplateError:
+      discard cur.users.search_autodetect(filterActive = false).all()
+
+  test "strictTemplates allows .nsql files":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store, strictTemplates = true)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+
+    # search.nsql should work fine even in strict mode
+    let results =
+      cur.users.search(filterActive = true, active = 1, filterName = false).all()
+    check results.len == 1

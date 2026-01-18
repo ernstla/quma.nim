@@ -3,6 +3,7 @@ import std/[os, tables]
 import ./errors
 import ./params
 import ./store
+import ./tmplLexer
 
 type FsScriptStore* = ref object of ScriptStore
   sqlDirs: seq[string]
@@ -54,10 +55,12 @@ method getScript*(store: FsScriptStore, id: ScriptId): Script =
     let sqlPath = scriptFilePath(dir, id)
     if fileExists(sqlPath):
       let sqlText = readFile(sqlPath)
+      # Auto-detect template content in .sql files
+      let isTemplate = hasTemplateContent(sqlText)
       let script = Script(
         id: id,
         sql: sqlText,
-        isTemplate: false,
+        isTemplate: isTemplate,
         origin: sqlPath,
         compiled: compileNamedSql(sqlText),
       )
@@ -71,7 +74,7 @@ method getScript*(store: FsScriptStore, id: ScriptId): Script =
       let script = Script(
         id: id,
         sql: sqlText,
-        isTemplate: true,
+        isTemplate: true, # .nsql is always a template
         origin: tmplPath,
         compiled: compileNamedSql(sqlText),
       )

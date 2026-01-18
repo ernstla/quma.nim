@@ -3,6 +3,7 @@ import std/macros
 
 import ./errors
 import ./params
+import ./tmplLexer
 
 type
   ScriptId* = string
@@ -127,7 +128,8 @@ macro embedSqlDir*(dir: static[string]): untyped =
   for idPath in ids:
     let entry = selected[idPath]
     let sqlText = staticRead(entry.path)
-    let isTemplate = entry.ext == ".nsql"
+    # Detect template: explicit .nsql extension OR auto-detect {#if in content
+    let isTemplate = entry.ext == ".nsql" or hasTemplateContent(sqlText)
     # Compile the SQL at compile-time
     let compiled = compileNamedSql(sqlText)
     # Build the CompiledNamedSql object constructor

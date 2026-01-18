@@ -325,6 +325,14 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
 
   let script = store.getScript(scriptId)
 
+  # Strict mode: error if template syntax found in .sql file
+  if cur.db.strictTemplates and script.isTemplate and script.origin.endsWith(".sql"):
+    raise newException(
+      TemplateError,
+      script.origin &
+        ": Template syntax in .sql file; use .nsql extension or disable strictTemplates",
+    )
+
   # For templates, render first then compile the result
   let compiled =
     if script.isTemplate:

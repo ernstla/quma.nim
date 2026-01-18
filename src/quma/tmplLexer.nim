@@ -2,6 +2,11 @@ import std/strutils
 
 import ./errors
 
+proc hasTemplateContent*(sql: string): bool =
+  ## Detects if SQL contains template syntax.
+  ## Currently checks for {#if, future: {#include
+  "{#if " in sql or "{#if\t" in sql or "{#if\n" in sql
+
 type
   TmplTokenKind* = enum
     TkText # Raw SQL text
