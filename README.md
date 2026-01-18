@@ -42,12 +42,6 @@ The upstream libraries expose these as:
 Multiple SQL directories can be registered; later/earlier directories can
 "shadow" each other to support overrides.
 
-## Status
-
-The Nim implementation is currently bootstrapping (API and internals are not
-feature-complete yet). The goal is to match the behavior of the Python library
-first, using the PHP port as an additional reference where it differs.
-
 ## Embedded Scripts and Overrides
 
 Downstream applications can embed SQL at compile time and overlay local
