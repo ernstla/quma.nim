@@ -6,3 +6,5 @@ type
   QueryError* = object of QumaError
   QueryNoRowsError* = object of QueryError
   QueryTooManyRowsError* = object of QueryError
+
+  TemplateError* = object of QumaError
