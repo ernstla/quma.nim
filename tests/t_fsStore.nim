@@ -42,6 +42,19 @@ suite "FsScriptStore":
     discard store.getScript("users/all")
     check cacheEnabled(store)
 
+  test "reload bypasses cache":
+    let tempDir = createTempDir("quma_reload_", "")
+    let sqlDir = joinPath(tempDir, "sql")
+    createDir(sqlDir)
+    let scriptPath = joinPath(sqlDir, "greeting.sql")
+    writeFile(scriptPath, "select 1;\n")
+
+    let store = initFsScriptStore([sqlDir], reload = true)
+    check store.getScript("greeting").sql.contains("select 1")
+
+    writeFile(scriptPath, "select 2;\n")
+    check store.getScript("greeting").sql.contains("select 2")
+
   test "cache can be disabled":
     let base = joinPath(getCurrentDir(), "tests/fixtures/sql/base")
     let store = initFsScriptStore([base], cache = false)

@@ -6,11 +6,17 @@ import ./store
 type FsScriptStore* = ref object of ScriptStore
   sqlDirs: seq[string]
   cacheEnabled: bool
+  reloadEnabled: bool
   cache: Table[ScriptId, Script]
 
-proc initFsScriptStore*(sqlDirs: openArray[string], cache = true): FsScriptStore =
+proc initFsScriptStore*(
+    sqlDirs: openArray[string], cache = true, reload = false
+): FsScriptStore =
   FsScriptStore(
-    sqlDirs: @sqlDirs, cacheEnabled: cache, cache: initTable[ScriptId, Script]()
+    sqlDirs: @sqlDirs,
+    cacheEnabled: cache,
+    reloadEnabled: reload,
+    cache: initTable[ScriptId, Script](),
   )
 
 proc sqlDirs*(store: FsScriptStore): seq[string] =
@@ -18,6 +24,9 @@ proc sqlDirs*(store: FsScriptStore): seq[string] =
 
 proc cacheEnabled*(store: FsScriptStore): bool =
   store.cacheEnabled
+
+proc reloadEnabled*(store: FsScriptStore): bool =
+  store.reloadEnabled
 
 proc clearCache*(store: FsScriptStore) =
   if store.cache.len > 0:
@@ -37,7 +46,7 @@ method hasNamespace*(store: FsScriptStore, name: string): bool =
   false
 
 method getScript*(store: FsScriptStore, id: ScriptId): Script =
-  if store.cacheEnabled and store.cache.hasKey(id):
+  if store.cacheEnabled and not store.reloadEnabled and store.cache.hasKey(id):
     return store.cache[id]
 
   for dir in store.sqlDirs:
