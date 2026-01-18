@@ -37,7 +37,7 @@ proc scriptFilePath(dir: string, id: ScriptId): string =
   joinPath(dir, id & ".sql")
 
 proc templateFilePath(dir: string, id: ScriptId): string =
-  joinPath(dir, id & ".msql")
+  joinPath(dir, id & ".nsql")
 
 method hasNamespace*(store: FsScriptStore, name: string): bool =
   for dir in store.sqlDirs:

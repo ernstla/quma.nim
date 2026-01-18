@@ -9,6 +9,7 @@ import ./params
 import ./query
 import ./sqliteDb
 import ./store
+import ./tmplEval
 
 import ./database
 
@@ -323,7 +324,14 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
     raise newException(QumaError, "No ScriptStore configured")
 
   let script = store.getScript(scriptId)
-  let compiled = script.compiled
+
+  # For templates, render first then compile the result
+  let compiled =
+    if script.isTemplate:
+      let renderedSql = renderTemplate(script.sql, scriptArgs.named, scriptId)
+      compileNamedSql(renderedSql)
+    else:
+      script.compiled
 
   var filteredNamed = initTable[string, ArgValue]()
   for name in scriptArgs.named.keys:

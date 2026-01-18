@@ -101,7 +101,7 @@ macro embedSqlDir*(dir: static[string]): untyped =
   var selected = initTable[string, tuple[path: string, ext: string]]()
   for path in walkDirRec(normalized):
     let ext = splitFile(path).ext
-    if ext != ".sql" and ext != ".msql":
+    if ext != ".sql" and ext != ".nsql":
       continue
     let relPath = relativePath(path, normalized)
     let (dirPart, name, _) = splitFile(relPath)
@@ -123,17 +123,11 @@ macro embedSqlDir*(dir: static[string]): untyped =
   for idPath in selected.keys:
     ids.add(idPath)
   ids.sort()
-  for idPath in ids:
-    let entry = selected[idPath]
-    if entry.ext == ".msql":
-      let sqlPath = normalized / (idPath & ".sql")
-      if not fileExists(sqlPath):
-        error("Missing .sql origin for template script: " & idPath)
   var entries: seq[NimNode] = @[]
   for idPath in ids:
     let entry = selected[idPath]
     let sqlText = staticRead(entry.path)
-    let isTemplate = entry.ext == ".msql"
+    let isTemplate = entry.ext == ".nsql"
     # Compile the SQL at compile-time
     let compiled = compileNamedSql(sqlText)
     # Build the CompiledNamedSql object constructor
