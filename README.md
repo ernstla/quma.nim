@@ -42,6 +42,79 @@ The upstream libraries expose these as:
 Multiple SQL directories can be registered; later/earlier directories can
 "shadow" each other to support overrides.
 
+## Dynamic SQL Templates
+
+quma supports dynamic SQL generation using a Svelte-like template syntax. Template
+files use the `.nsql` extension, but template syntax is also auto-detected in
+regular `.sql` files.
+
+### Syntax
+
+```sql
+SELECT * FROM users
+WHERE 1=1
+{#if filterActive}
+  AND active = :active
+{/if}
+{#if role == 'admin'}
+  AND role = 'admin'
+{:else if role != ''}
+  AND role = :role
+{:else}
+  AND role IS NOT NULL
+{/if}
+ORDER BY id
+```
+
+### Supported Constructs
+
+| Construct | Description |
+|-----------|-------------|
+| `{#if expr}...{/if}` | Conditional block |
+| `{:else if expr}` | Else-if branch |
+| `{:else}` | Else branch |
+
+### Expression Language
+
+Template conditions use a simple expression language:
+
+| Type | Literals | Example |
+|------|----------|---------|
+| string | `'single'` or `"double"` | `name == 'Hans'` |
+| int | digits | `count > 10` |
+| float | digits with `.` | `price >= 99.99` |
+| bool | `true`, `false` | `isActive` |
+| null | `null` | `value != null` |
+
+**Operators** (lowest to highest precedence):
+- `or` - logical or
+- `and` - logical and
+- `not` - logical negation
+- `==`, `!=` - equality (any type, both sides must match)
+- `<`, `<=`, `>`, `>=` - comparison (numeric only)
+- `()` - grouping
+
+### Variables
+
+Template variables come from the same named parameters used for SQL binding:
+
+```nim
+let q = db.cursor.users.search(filterActive = true, role = "admin")
+```
+
+Unknown variables or type mismatches raise `TemplateError` with line/column info.
+
+### Strict Mode
+
+By default, template syntax is auto-detected in both `.sql` and `.nsql` files.
+To require explicit `.nsql` extension for templates, enable strict mode:
+
+```nim
+let db = initDatabase("sqlite:///app.db", store, strictTemplates = true)
+```
+
+In strict mode, template syntax in `.sql` files raises `TemplateError`.
+
 ## Embedded Scripts and Overrides
 
 Downstream applications can embed SQL at compile time and overlay local
