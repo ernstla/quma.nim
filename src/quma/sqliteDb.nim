@@ -1,18 +1,19 @@
 import std/sequtils
 
-import db_connector/db_sqlite
+import db_connector/db_sqlite as sqlite
 
 import ./args
 import ./errors
+import ./query
 
 type SqliteConn* = object
-  handle*: DbConn
+  handle*: sqlite.DbConn
 
 proc isOpen*(c: SqliteConn): bool =
   c.handle != nil
 
 proc openSqlite*(path: string): SqliteConn =
-  let db = db_sqlite.open(path, "", "", "")
+  let db = sqlite.open(path, "", "", "")
   SqliteConn(handle: db)
 
 proc close*(c: var SqliteConn) =
@@ -20,28 +21,36 @@ proc close*(c: var SqliteConn) =
     c.handle.close()
     c.handle = nil
 
-proc execPrepared*(
-    c: SqliteConn, sqlText: string, bindValues: openArray[ArgValue]
-): seq[seq[string]] =
-  if c.handle == nil:
-    raise newException(QumaError, "SQLite connection not open")
-
-  var args: seq[string] = @[]
+proc toBindArgs(bindValues: openArray[ArgValue]): seq[string] =
+  result = @[]
   for v in bindValues:
     case v.kind
     of avkNull:
-      args.add ""
+      result.add ""
     of avkInt:
-      args.add $v.i
+      result.add $v.i
     of avkFloat:
-      args.add $v.f
+      result.add $v.f
     of avkString:
-      args.add v.s
+      result.add v.s
     of avkBool:
-      args.add (if v.b: "1" else: "0")
+      result.add (if v.b: "1" else: "0")
 
-  let q = sql(sqlText)
-  c.handle.getAllRows(q, args).mapIt(@it)
+proc execPrepared*(
+    c: SqliteConn, sqlText: string, bindValues: openArray[ArgValue]
+): seq[query.Row] =
+  if c.handle == nil:
+    raise newException(QumaError, "SQLite connection not open")
 
-proc execPrepared*(c: SqliteConn, sqlText: string): seq[seq[string]] =
+  var columns: sqlite.DbColumns
+  var rows: seq[query.Row] = @[]
+  let q = sqlite.sql(sqlText)
+  for row in c.handle.instantRows(columns, q, toBindArgs(bindValues)):
+    var values = newSeq[string](row.len)
+    for i in 0 ..< values.len:
+      values[i] = row[int32(i)]
+    rows.add query.Row(columns: columns.mapIt(it.name), values: values)
+  rows
+
+proc execPrepared*(c: SqliteConn, sqlText: string): seq[query.Row] =
   c.execPrepared(sqlText, newSeq[ArgValue]())

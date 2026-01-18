@@ -1,4 +1,5 @@
 {.experimental: "dotOperators".}
+{.experimental: "callOperator".}
 
 import std/macros
 import std/tables
@@ -19,6 +20,21 @@ type
   NamespaceRef* = object
     cursor: CursorBase
     segments: seq[string]
+
+  TypedScriptRef*[T] = object
+    cursor: CursorBase
+    scriptId: ScriptId
+    rowMapper: RowMapper[T]
+
+proc identNameOrError(node: NimNode, what: string): string =
+  case node.kind
+  of nnkIdent, nnkSym:
+    node.strVal
+  else:
+    error("Expected " & what & " identifier, got: " & node.repr, node)
+
+proc argKeyOrError(argNode: NimNode): string =
+  identNameOrError(argNode, "named arg")
 
 proc cursor*(db: Database): Cursor =
   let path = db.sqlitePathOrError()
@@ -41,6 +57,36 @@ proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
 proc initNamespaceRef*(cursor: CursorBase, segments: seq[string]): NamespaceRef =
   NamespaceRef(cursor: cursor, segments: segments)
 
+proc initTypedScriptRef*[T](
+    cursor: CursorBase, scriptId: ScriptId, rowMapper: RowMapper[T]
+): TypedScriptRef[T] =
+  TypedScriptRef[T](cursor: cursor, scriptId: scriptId, rowMapper: rowMapper)
+
+macro `()`*(refExpr: TypedScriptRef, args: varargs[untyped]): untyped =
+  let refSym = genSym(nskLet, "typedRef")
+  let argsSym = genSym(nskVar, "scriptArgs")
+
+  var argStmts = newStmtList()
+  for arg in args:
+    case arg.kind
+    of nnkExprEqExpr, nnkExprColonExpr:
+      let key = argKeyOrError(arg[0])
+      let keyLit = newLit(key)
+      argStmts.add newCall(
+        bindSym"addNamed", argsSym, keyLit, newCall(bindSym"toArgValue", arg[1])
+      )
+    else:
+      argStmts.add newCall(
+        bindSym"addPositional", argsSym, newCall(bindSym"toArgValue", arg)
+      )
+
+  result = quote:
+    block:
+      let `refSym` = `refExpr`
+      var `argsSym` = initScriptArgs()
+      `argStmts`
+      initQuery(`refSym`.cursor, `refSym`.scriptId, `argsSym`, `refSym`.rowMapper)
+
 proc cursorBase*(ns: NamespaceRef): CursorBase =
   ns.cursor
 
@@ -53,22 +99,39 @@ template `.`*(cur: Cursor, field: untyped): NamespaceRef =
 template `.`*(ns: NamespaceRef, field: untyped): NamespaceRef =
   initNamespaceRef(ns.cursorBase, ns.segments & @[astToStr(field)])
 
-proc identNameOrError(node: NimNode, what: string): string =
-  case node.kind
+type ScriptFieldInfo = object
+  name: string
+  typ: NimNode
+
+proc fieldInfoOrError(fieldNode: NimNode): ScriptFieldInfo =
+  case fieldNode.kind
   of nnkIdent, nnkSym:
-    node.strVal
+    ScriptFieldInfo(name: fieldNode.strVal, typ: newEmptyNode())
+  of nnkBracketExpr:
+    if fieldNode.len != 2:
+      error("Expected a single type parameter", fieldNode)
+    let base = fieldNode[0]
+    if base.kind notin {nnkIdent, nnkSym}:
+      error("Expected script identifier", fieldNode)
+    ScriptFieldInfo(name: base.strVal, typ: fieldNode[1])
   else:
-    error("Expected " & what & " identifier, got: " & node.repr, node)
+    error("Expected field identifier", fieldNode)
+    ScriptFieldInfo(name: "", typ: newEmptyNode())
 
-proc argKeyOrError(argNode: NimNode): string =
-  identNameOrError(argNode, "named arg")
-
-proc fieldNameOrError(fieldNode: NimNode): string =
-  identNameOrError(fieldNode, "field")
+proc queryInitCall(
+    cursorExpr: NimNode, scriptIdExpr: NimNode, argsExpr: NimNode, info: ScriptFieldInfo
+): NimNode =
+  if info.typ.kind == nnkEmpty:
+    newCall(bindSym"initQuery", cursorExpr, scriptIdExpr, argsExpr)
+  else:
+    let initSym = newTree(nnkBracketExpr, bindSym"initQuery", info.typ)
+    let mapperSym = newTree(nnkBracketExpr, bindSym"fromRow", info.typ)
+    newCall(initSym, cursorExpr, scriptIdExpr, argsExpr, mapperSym)
 
 macro `.()`*(curExpr: Cursor, field: untyped, args: varargs[untyped]): untyped =
   let curSym = genSym(nskLet, "cur")
-  let scriptIdLit = newLit(fieldNameOrError(field))
+  let fieldInfo = fieldInfoOrError(field)
+  let scriptIdLit = newLit(fieldInfo.name)
   let argsSym = genSym(nskVar, "scriptArgs")
 
   var argStmts = newStmtList()
@@ -85,16 +148,18 @@ macro `.()`*(curExpr: Cursor, field: untyped, args: varargs[untyped]): untyped =
         bindSym"addPositional", argsSym, newCall(bindSym"toArgValue", arg)
       )
 
+  let queryCall = queryInitCall(curSym, scriptIdLit, argsSym, fieldInfo)
   result = quote:
     block:
       let `curSym` = `curExpr`
       var `argsSym` = initScriptArgs()
       `argStmts`
-      initQuery(`curSym`, `scriptIdLit`, `argsSym`)
+      `queryCall`
 
 macro `.()`*(nsExpr: NamespaceRef, field: untyped, args: varargs[untyped]): untyped =
   let nsSym = genSym(nskLet, "ns")
-  let scriptNameLit = newLit(fieldNameOrError(field))
+  let fieldInfo = fieldInfoOrError(field)
+  let scriptNameLit = newLit(fieldInfo.name)
   let argsSym = genSym(nskVar, "scriptArgs")
 
   var argStmts = newStmtList()
@@ -110,17 +175,55 @@ macro `.()`*(nsExpr: NamespaceRef, field: untyped, args: varargs[untyped]): unty
       argStmts.add newCall(
         bindSym"addPositional", argsSym, newCall(bindSym"toArgValue", arg)
       )
+
+  let scriptIdExpr = newCall(
+    bindSym"makeScriptId",
+    newTree(
+      nnkInfix,
+      ident"&",
+      newDotExpr(nsSym, ident"segments"),
+      newTree(nnkPrefix, ident"@", newTree(nnkBracket, scriptNameLit)),
+    ),
+  )
+  let queryCall = queryInitCall(
+    newDotExpr(nsSym, ident"cursorBase"), scriptIdExpr, argsSym, fieldInfo
+  )
 
   result = quote:
     block:
       let `nsSym` = `nsExpr`
       var `argsSym` = initScriptArgs()
       `argStmts`
-      initQuery(
-        `nsSym`.cursorBase,
-        makeScriptId(`nsSym`.segments & @[`scriptNameLit`]),
-        `argsSym`,
+      `queryCall`
+
+macro `[]`*(nsExpr: NamespaceRef, typeNode: typedesc): untyped =
+  let nsSym = genSym(nskLet, "ns")
+
+  result = quote:
+    block:
+      let `nsSym` = `nsExpr`
+      initTypedScriptRef(
+        `nsSym`.cursorBase, makeScriptId(`nsSym`.segments), fromRow[`typeNode`]
       )
+
+macro `[]`*(nsExpr: NamespaceRef, field: untyped, typeNode: typedesc): untyped =
+  let nsSym = genSym(nskLet, "ns")
+  let fieldInfo = fieldInfoOrError(field)
+  let scriptNameLit = newLit(fieldInfo.name)
+  let scriptIdExpr = newCall(
+    bindSym"makeScriptId",
+    newTree(
+      nnkInfix,
+      ident"&",
+      newDotExpr(nsSym, ident"segments"),
+      newTree(nnkPrefix, ident"@", newTree(nnkBracket, scriptNameLit)),
+    ),
+  )
+
+  result = quote:
+    block:
+      let `nsSym` = `nsExpr`
+      initTypedScriptRef(`nsSym`.cursorBase, `scriptIdExpr`, fromRow[`typeNode`])
 
 method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Row] =
   let store = cur.db.scriptStore
