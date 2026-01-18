@@ -103,16 +103,16 @@ proc fromRow*[T](row: Row): T =
       raise newException(QueryError, "Query returned no columns")
     return parseValue[T](row.values[0], "value")
   elif T is object or T is tuple:
-    var result: T
-    for name, field in result.fieldPairs:
-      let columnName = fieldColumnName(result, name)
+    var mapped: T
+    for name, field in mapped.fieldPairs:
+      let columnName = fieldColumnName(mapped, name)
       let index = columnIndex(row, columnName)
       if index < 0:
         raise newException(
           QueryError, "Missing column '" & columnName & "' for field '" & name & "'"
         )
       assignField(field, row.values[index], name)
-    return result
+    return mapped
   else:
     {.error: "Unsupported mapping type for Quma fromRow".}
 

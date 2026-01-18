@@ -29,7 +29,7 @@ type
 proc identNameOrError(node: NimNode, what: string): string =
   case node.kind
   of nnkIdent, nnkSym:
-    node.strVal
+    result = node.strVal
   else:
     error("Expected " & what & " identifier, got: " & node.repr, node)
 
@@ -106,17 +106,16 @@ type ScriptFieldInfo = object
 proc fieldInfoOrError(fieldNode: NimNode): ScriptFieldInfo =
   case fieldNode.kind
   of nnkIdent, nnkSym:
-    ScriptFieldInfo(name: fieldNode.strVal, typ: newEmptyNode())
+    result = ScriptFieldInfo(name: fieldNode.strVal, typ: newEmptyNode())
   of nnkBracketExpr:
     if fieldNode.len != 2:
       error("Expected a single type parameter", fieldNode)
     let base = fieldNode[0]
     if base.kind notin {nnkIdent, nnkSym}:
       error("Expected script identifier", fieldNode)
-    ScriptFieldInfo(name: base.strVal, typ: fieldNode[1])
+    result = ScriptFieldInfo(name: base.strVal, typ: fieldNode[1])
   else:
     error("Expected field identifier", fieldNode)
-    ScriptFieldInfo(name: "", typ: newEmptyNode())
 
 proc queryInitCall(
     cursorExpr: NimNode, scriptIdExpr: NimNode, argsExpr: NimNode, info: ScriptFieldInfo
