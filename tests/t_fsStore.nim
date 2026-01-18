@@ -1,4 +1,4 @@
-import std/[os, strutils]
+import std/[os, strutils, tempfiles]
 import unittest
 
 import quma
@@ -34,3 +34,33 @@ suite "FsScriptStore":
 
     expect ScriptNotFoundError:
       discard store.getScript("does/not/exist")
+
+  test "cache stores resolved scripts by default":
+    let base = joinPath(getCurrentDir(), "tests/fixtures/sql/base")
+    let store = initFsScriptStore([base])
+
+    discard store.getScript("users/all")
+    check cacheEnabled(store)
+
+  test "cache can be disabled":
+    let base = joinPath(getCurrentDir(), "tests/fixtures/sql/base")
+    let store = initFsScriptStore([base], cache = false)
+
+    discard store.getScript("users/all")
+    check cacheEnabled(store) == false
+
+  test "clearCache reloads scripts":
+    let tempDir = createTempDir("quma_cache_", "")
+    let sqlDir = joinPath(tempDir, "sql")
+    createDir(sqlDir)
+    let scriptPath = joinPath(sqlDir, "greeting.sql")
+    writeFile(scriptPath, "select 1;\n")
+
+    let store = initFsScriptStore([sqlDir])
+    check store.getScript("greeting").sql.contains("select 1")
+
+    writeFile(scriptPath, "select 2;\n")
+    check store.getScript("greeting").sql.contains("select 1")
+
+    clearCache(store)
+    check store.getScript("greeting").sql.contains("select 2")

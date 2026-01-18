@@ -1,16 +1,27 @@
-import std/os
+import std/[os, tables]
 
 import ./errors
 import ./store
 
 type FsScriptStore* = ref object of ScriptStore
   sqlDirs: seq[string]
+  cacheEnabled: bool
+  cache: Table[ScriptId, Script]
 
-proc initFsScriptStore*(sqlDirs: openArray[string]): FsScriptStore =
-  FsScriptStore(sqlDirs: @sqlDirs)
+proc initFsScriptStore*(sqlDirs: openArray[string], cache = true): FsScriptStore =
+  FsScriptStore(
+    sqlDirs: @sqlDirs, cacheEnabled: cache, cache: initTable[ScriptId, Script]()
+  )
 
 proc sqlDirs*(store: FsScriptStore): seq[string] =
   store.sqlDirs
+
+proc cacheEnabled*(store: FsScriptStore): bool =
+  store.cacheEnabled
+
+proc clearCache*(store: FsScriptStore) =
+  if store.cache.len > 0:
+    store.cache.clear()
 
 proc scriptFilePath(dir: string, id: ScriptId): string =
   joinPath(dir, id & ".sql")
@@ -26,13 +37,24 @@ method hasNamespace*(store: FsScriptStore, name: string): bool =
   false
 
 method getScript*(store: FsScriptStore, id: ScriptId): Script =
+  if store.cacheEnabled and store.cache.hasKey(id):
+    return store.cache[id]
+
   for dir in store.sqlDirs:
     let sqlPath = scriptFilePath(dir, id)
     if fileExists(sqlPath):
-      return Script(id: id, sql: readFile(sqlPath), isTemplate: false, origin: sqlPath)
+      let script =
+        Script(id: id, sql: readFile(sqlPath), isTemplate: false, origin: sqlPath)
+      if store.cacheEnabled:
+        store.cache[id] = script
+      return script
 
     let tmplPath = templateFilePath(dir, id)
     if fileExists(tmplPath):
-      return Script(id: id, sql: readFile(tmplPath), isTemplate: true, origin: tmplPath)
+      let script =
+        Script(id: id, sql: readFile(tmplPath), isTemplate: true, origin: tmplPath)
+      if store.cacheEnabled:
+        store.cache[id] = script
+      return script
 
   raise newException(ScriptNotFoundError, "Script not found: " & id)
