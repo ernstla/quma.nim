@@ -1,8 +1,7 @@
 {.experimental: "dotOperators".}
 {.experimental: "callOperator".}
 
-import std/macros
-import std/tables
+import std/[macros, tables, sets]
 
 import ./args
 import ./database
@@ -232,11 +231,16 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
   let script = store.getScript(scriptId)
   let compiled = compileNamedSql(script.sql)
 
+  var filteredNamed = initTable[string, ArgValue]()
+  for name in scriptArgs.named.keys:
+    if name in compiled.nameSet:
+      filteredNamed[name] = scriptArgs.named[name]
+
   var bindValues: seq[ArgValue] = @[]
   for name in compiled.names:
-    if not scriptArgs.named.hasKey(name):
+    if not filteredNamed.hasKey(name):
       raiseMissingParam(name, scriptId)
-    bindValues.add scriptArgs.named[name]
+    bindValues.add filteredNamed[name]
 
   let rows = cur.conn.execPrepared(compiled.sql, bindValues)
   rows

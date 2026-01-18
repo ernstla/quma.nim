@@ -23,7 +23,7 @@ suite "SQLite Query":
     cur.exec("insert into users(id, name) values (2, 'Bob');")
 
     expect QueryNoRowsError:
-      discard cur.users.get_by_id(id = 999).one()
+      discard cur.users.get_by_id(id = 999, name = "Ada").one()
 
     expect QueryTooManyRowsError:
       discard cur.users.all().one()
@@ -37,7 +37,9 @@ suite "SQLite Query":
     cur.exec("create table users(id int, name text);")
     cur.exec("insert into users(id, name) values (1, 'Ada');")
 
-    let r = cur.users.get_by_id(id = 1).one()
+    cur.exec("insert into users(id, name) values (2, 'Bob');")
+
+    let r = cur.users.get_by_id(id = 1, name = "Ada", extra = "ignore").one()
     check r[0] == "1"
 
     expect QueryError:
@@ -62,5 +64,5 @@ suite "SQLite Query":
     check profile.get.id == 1
     check profile.get.name == "Ada"
 
-    let missing = cur.users.get_by_id(id = 999).first()
+    let missing = cur.users.get_by_id(id = 999, name = "Ada").first()
     check missing.isNone
