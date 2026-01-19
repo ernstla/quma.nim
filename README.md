@@ -20,7 +20,43 @@ The upstream repos are vendored (git-ignored) for reference:
   `*.sql.php` templates).
 - Provides a small query wrapper with convenience helpers like `one`, `all`,
   `first`, `exists`, and lazy execution/caching (conceptually).
-- Supports multiple databases upstream: SQLite, PostgreSQL, MySQL/MariaDB.
+- Supports multiple database backends: SQLite, PostgreSQL (MySQL planned).
+
+## Database Backends
+
+quma supports multiple database backends with compile-time selection:
+
+| Backend | URI Scheme | Compile Flag |
+|---------|------------|--------------|
+| SQLite | `sqlite:///path` or `sqlite:///:memory:` | `-d:qumaSqlite` |
+| PostgreSQL | `postgres://user:pass@host:port/db` | `-d:qumaPostgres` |
+
+### Compile-time Backend Selection
+
+By default, all backends are compiled in. To include only specific backends:
+
+```bash
+# SQLite only (smaller binary, no libpq dependency)
+nim c -d:qumaSqlite myapp.nim
+
+# PostgreSQL only
+nim c -d:qumaPostgres myapp.nim
+
+# Both explicitly
+nim c -d:qumaSqlite -d:qumaPostgres myapp.nim
+```
+
+### Usage Example
+
+```nim
+import quma
+
+# SQLite
+let sqliteDb = initDatabase("sqlite:///:memory:", store)
+
+# PostgreSQL
+let pgDb = initDatabase("postgres://user:pass@localhost:5432/mydb", store)
+```
 
 ## SQL Directory Layout (Upstream Convention)
 
