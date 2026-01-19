@@ -18,8 +18,9 @@ when not hasExplicitBackends or defined(qumaSqlite):
 else:
   const sqliteEnabled* = false
 
-# PostgreSQL backend (placeholder for now)
+# PostgreSQL backend
 when not hasExplicitBackends or defined(qumaPostgres):
+  import ./platform/postgres
   const postgresEnabled* = true
 else:
   const postgresEnabled* = false
@@ -39,8 +40,7 @@ proc detectBackend(uri: string): DbBackend =
 
   when postgresEnabled:
     if uri.startsWith("postgres://"):
-      raise
-        newException(QumaError, "PostgreSQL backend not yet implemented; URI: " & uri)
+      return initPostgresBackend()
 
   # Provide helpful error messages based on what's compiled in
   var msg = "Unsupported database URI: " & uri
