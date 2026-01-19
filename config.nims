@@ -9,7 +9,7 @@ proc testFlags(): string =
   when defined(qumaSqlite):
     flags.add "-d:qumaSqlite"
   if flags.len == 0:
-    return ""
+    return " -d:qumaSqlite"
   " " & flags.join(" ")
 
 proc runTests(flags: string) =

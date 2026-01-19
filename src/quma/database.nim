@@ -4,33 +4,25 @@ import ./backend
 import ./errors
 import ./store
 
-# Compile-time backend selection:
-# - If any -d:qumaSqlite, -d:qumaPostgres, or -d:qumaMysql flag is set, only include those backends
-# - If no flags are set, include all backends (default)
+const sqliteEnabled* = defined(qumaSqlite)
+const postgresEnabled* = defined(qumaPostgres)
+const mysqlEnabled* = defined(qumaMysql)
+const hasEnabledBackends = sqliteEnabled or postgresEnabled or mysqlEnabled
 
-const hasExplicitBackends =
-  defined(qumaSqlite) or defined(qumaPostgres) or defined(qumaMysql)
+when not hasEnabledBackends:
+  {.
+    error:
+      "No database backend enabled. Compile with -d:qumaSqlite, -d:qumaPostgres, and/or -d:qumaMysql."
+  .}
 
-# SQLite backend
-when not hasExplicitBackends or defined(qumaSqlite):
+when sqliteEnabled:
   import ./platform/sqlite
-  const sqliteEnabled* = true
-else:
-  const sqliteEnabled* = false
 
-# PostgreSQL backend
-when not hasExplicitBackends or defined(qumaPostgres):
+when postgresEnabled:
   import ./platform/postgres
-  const postgresEnabled* = true
-else:
-  const postgresEnabled* = false
 
-# MySQL backend
-when not hasExplicitBackends or defined(qumaMysql):
+when mysqlEnabled:
   import ./platform/mysql
-  const mysqlEnabled* = true
-else:
-  const mysqlEnabled* = false
 
 type Database* = ref object
   uri: string
@@ -55,16 +47,15 @@ proc detectBackend(uri: string): DbBackend =
 
   # Provide helpful error messages based on what's compiled in
   var msg = "Unsupported database URI: " & uri
-  when hasExplicitBackends:
-    msg.add "\nCompiled backends: "
-    var backends: seq[string] = @[]
-    when sqliteEnabled:
-      backends.add "sqlite"
-    when postgresEnabled:
-      backends.add "postgres"
-    when mysqlEnabled:
-      backends.add "mysql"
-    msg.add backends.join(", ")
+  msg.add "\nCompiled backends: "
+  var backends: seq[string] = @[]
+  when sqliteEnabled:
+    backends.add "sqlite"
+  when postgresEnabled:
+    backends.add "postgres"
+  when mysqlEnabled:
+    backends.add "mysql"
+  msg.add backends.join(", ")
   raise newException(QumaError, msg)
 
 proc initDatabase*(

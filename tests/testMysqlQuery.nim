@@ -12,10 +12,10 @@
 ##
 ## Run with: nim r -d:qumaMysql tests/testMysqlQuery.nim
 
-import std/[options, os, strutils]
 import unittest
 
 when defined(qumaMysql):
+  import std/[options, os, strutils]
   import quma
 
   proc getMysqlUri(): string =
@@ -126,8 +126,6 @@ when defined(qumaMysql):
 
         cur.exec("drop table users;")
 else:
-  import unittest
-
   suite "MySQL Query (disabled)":
     test "mysql backend not compiled":
       echo "MySQL tests disabled: compile with -d:qumaMysql to enable"

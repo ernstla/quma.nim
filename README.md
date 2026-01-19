@@ -24,7 +24,7 @@ The upstream repos are vendored (git-ignored) for reference:
 
 ## Database Backends
 
-quma supports multiple database backends with compile-time selection:
+quma supports multiple database backends with explicit compile-time selection:
 
 | Backend | URI Scheme | Compile Flag |
 |---------|------------|--------------|
@@ -34,10 +34,10 @@ quma supports multiple database backends with compile-time selection:
 
 ### Compile-time Backend Selection
 
-By default, all backends are compiled in. To include only specific backends:
+Backends are opt-in. You must compile with at least one backend flag:
 
 ```bash
-# SQLite only (smaller binary, no libpq dependency)
+# SQLite only
 nim c -d:qumaSqlite myapp.nim
 
 # PostgreSQL only

@@ -2,8 +2,7 @@ import std/os
 
 switch("path", "$projectDir/../src")
 
-# Default to SQLite-only for tests (unless postgres or mysql tests are enabled)
-when not defined(qumaPostgres) and not defined(qumaMysql):
+when not defined(qumaSqlite) and not defined(qumaPostgres) and not defined(qumaMysql):
   switch("define", "qumaSqlite")
 
 when defined(macosx):

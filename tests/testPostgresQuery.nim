@@ -11,10 +11,10 @@
 ##
 ## Run with: nim r -d:qumaPostgres tests/testPostgresQuery.nim
 
-import std/[options, os, strutils]
 import unittest
 
 when defined(qumaPostgres):
+  import std/[options, os]
   import quma
 
   proc getPostgresUri(): string =
@@ -123,8 +123,6 @@ when defined(qumaPostgres):
         cur.exec("drop table users;")
 else:
   # When qumaPostgres is not defined, provide a stub so the test file compiles
-  import unittest
-
   suite "PostgreSQL Query (disabled)":
     test "postgres backend not compiled":
       echo "PostgreSQL tests disabled: compile with -d:qumaPostgres to enable"
