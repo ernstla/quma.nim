@@ -34,7 +34,7 @@ quma supports multiple database backends with explicit compile-time selection:
 
 ### Compile-time Backend Selection
 
-Backends are opt-in. You must compile with at least one backend flag:
+Backends are opt-in. You must compile with at least one backend flag.
 
 ```bash
 # SQLite only
@@ -253,7 +253,8 @@ let db = initDatabase("sqlite:///:memory:", store)
 ## Development
 
 - Install dependencies: `atlas install` (do not use Nimble)
-- Run tests: `nim test -d:qumaSqlite` (or `nim testall`)
+- Run tests: `nim test sqlite` (required; or `nim test all`)
+- Pass backend args to test task: `nim test sqlite`, `nim test sqlite mysql`, or `nim test all`
 
 ## License
 
