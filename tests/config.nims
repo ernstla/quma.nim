@@ -2,9 +2,6 @@ import std/os
 
 switch("path", "$projectDir/../src")
 
-when not defined(qumaSqlite) and not defined(qumaPostgres) and not defined(qumaMysql):
-  switch("define", "qumaSqlite")
-
 when defined(macosx):
   when defined(arm64):
     const libpqPath = "/opt/homebrew/opt/libpq/lib"

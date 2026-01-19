@@ -253,7 +253,7 @@ let db = initDatabase("sqlite:///:memory:", store)
 ## Development
 
 - Install dependencies: `atlas install` (do not use Nimble)
-- Run tests: `nim test`
+- Run tests: `nim test -d:qumaSqlite` (or `nim testall`)
 
 ## License
 
