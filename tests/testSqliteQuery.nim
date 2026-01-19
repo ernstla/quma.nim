@@ -209,3 +209,30 @@ suite "SQLite Query":
     let activeOnly = cur.users.searchConditionalInclude(useActiveFilter = true).all()
     check activeOnly.len == 1
     check activeOnly[0][1] == "Ada"
+
+  test "strictTemplates rejects include in .sql files":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store, strictTemplates = true)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+
+    # searchIncludeAutodetect.sql uses {#include} in a .sql file
+    expect TemplateError:
+      discard cur.users.searchIncludeAutodetect().all()
+
+  test "include works without strictTemplates in .sql files":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+    cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
+
+    # Without strictTemplates, include in .sql works fine
+    let results = cur.users.searchIncludeAutodetect().all()
+    check results.len == 1
+    check results[0][1] == "Ada"
