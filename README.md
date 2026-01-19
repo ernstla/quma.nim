@@ -253,8 +253,8 @@ let db = initDatabase("sqlite:///:memory:", store)
 ## Development
 
 - Install dependencies: `atlas install` (do not use Nimble)
-- Run tests: `nim test sqlite` (required; or `nim test all`)
-- Pass backend args to test task: `nim test sqlite`, `nim test sqlite mysql`, or `nim test all`
+- Run tests: `nim test` (defaults to SQLite; or `nim test all`)
+- Pass backend args to test task: `nim test mysql`, `nim test sqlite mysql`, or `nim test all`
 
 ## License
 

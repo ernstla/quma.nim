@@ -72,11 +72,9 @@ proc runTests(flags: string) =
     exec "nim r" & flags & " " & testFile
 
 task test, "Run all unit tests":
-  let backends = selectedBackends()
+  var backends = selectedBackends()
   if backends.len == 0:
-    quit("No backend selected. Use -d:qumaSqlite or nim test sqlite.")
+    addUnique(backends, "sqlite")
   if "sqlite" notin backends:
-    quit(
-      "SQLite backend is required for nim test. Use nim test sqlite or nim test all."
-    )
+    addUnique(backends, "sqlite")
   runTests(flagsForBackends(backends))
