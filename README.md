@@ -68,6 +68,18 @@ let mysqlDb = initDatabase("mysql://user:pass@localhost:3306/mydb", store)
 let mariadbDb = initDatabase("mariadb://user:pass@localhost:3306/mydb", store)
 ```
 
+### Test Database Defaults
+
+The PostgreSQL and MySQL integration tests use `QUMA_`-prefixed environment
+variables with defaults so tests can run without extra configuration:
+
+| Backend | Env Vars (defaults) |
+|---------|---------------------|
+| PostgreSQL | `QUMA_PGSQL_HOST=localhost`, `QUMA_PGSQL_USER=quma`, `QUMA_PGSQL_PASSWORD=quma`, `QUMA_PGSQL_DATABASE=quma`, `QUMA_PGSQL_PORT=5432` |
+| MySQL/MariaDB | `QUMA_MYSQL_HOST=localhost`, `QUMA_MYSQL_USER=quma`, `QUMA_MYSQL_PASSWORD=quma`, `QUMA_MYSQL_DATABASE=quma`, `QUMA_MYSQL_PORT=3306`, `QUMA_MYSQL_SCHEME=mysql` |
+
+Set these variables if your local test database uses different credentials.
+
 ## SQL Directory Layout (Upstream Convention)
 
 Given a directory with scripts:

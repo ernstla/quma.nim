@@ -2,7 +2,13 @@
 ##
 ## These tests require:
 ## 1. Compile with -d:qumaMysql flag
-## 2. Environment variables: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
+## 2. Environment variables:
+##    - QUMA_MYSQL_HOST (default: localhost)
+##    - QUMA_MYSQL_USER (default: quma)
+##    - QUMA_MYSQL_PASSWORD (default: quma)
+##    - QUMA_MYSQL_DATABASE (default: quma)
+##    - QUMA_MYSQL_PORT (default: 3306)
+##    - QUMA_MYSQL_SCHEME (default: mysql)
 ##
 ## Run with: nim r -d:qumaMysql tests/testMysqlQuery.nim
 
@@ -14,18 +20,18 @@ when defined(qumaMysql):
 
   proc getMysqlUri(): string =
     ## Builds a mysql:// URI from environment variables.
-    let host = getEnv("MYSQL_HOST", "")
-    let user = getEnv("MYSQL_USER", "")
-    let pass = getEnv("MYSQL_PASSWORD", "")
-    let db = getEnv("MYSQL_DATABASE", "")
-    let port = getEnv("MYSQL_PORT", "3306")
-    let scheme = getEnv("MYSQL_SCHEME", "mysql")
-
-    if host.len == 0 or user.len == 0 or db.len == 0:
-      return ""
+    let host = getEnv("QUMA_MYSQL_HOST", "localhost")
+    let user = getEnv("QUMA_MYSQL_USER", "quma")
+    let pass = getEnv("QUMA_MYSQL_PASSWORD", "quma")
+    let db = getEnv("QUMA_MYSQL_DATABASE", "quma")
+    let port = getEnv("QUMA_MYSQL_PORT", "3306")
+    let scheme = getEnv("QUMA_MYSQL_SCHEME", "mysql")
 
     let normalizedScheme = scheme.toLowerAscii()
     if normalizedScheme notin ["mysql", "mariadb"]:
+      return ""
+
+    if host.len == 0 or user.len == 0 or db.len == 0:
       return ""
 
     result = normalizedScheme & "://" & user
@@ -45,7 +51,7 @@ when defined(qumaMysql):
 
   suite "MySQL Query":
     if skipTests:
-      echo "Skipping MySQL tests: missing MYSQL_HOST, MYSQL_USER, MYSQL_DATABASE env vars"
+      echo "Skipping MySQL tests: missing QUMA_MYSQL_HOST, QUMA_MYSQL_USER, or QUMA_MYSQL_DATABASE env vars"
 
     test "can execute script and fetch helpers":
       if skipTests:

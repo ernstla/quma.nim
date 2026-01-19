@@ -2,7 +2,12 @@
 ##
 ## These tests require:
 ## 1. Compile with -d:qumaPostgres flag
-## 2. Environment variables: PGHOST, PGUSER, PGPASSWORD, PGDATABASE
+## 2. Environment variables:
+##    - QUMA_PGSQL_HOST (default: localhost)
+##    - QUMA_PGSQL_USER (default: quma)
+##    - QUMA_PGSQL_PASSWORD (default: quma)
+##    - QUMA_PGSQL_DATABASE (default: quma)
+##    - QUMA_PGSQL_PORT (default: 5432)
 ##
 ## Run with: nim r -d:qumaPostgres tests/testPostgresQuery.nim
 
@@ -14,11 +19,11 @@ when defined(qumaPostgres):
 
   proc getPostgresUri(): string =
     ## Builds a postgres:// URI from environment variables.
-    let host = getEnv("PGHOST", "")
-    let user = getEnv("PGUSER", "")
-    let pass = getEnv("PGPASSWORD", "")
-    let db = getEnv("PGDATABASE", "")
-    let port = getEnv("PGPORT", "5432")
+    let host = getEnv("QUMA_PGSQL_HOST", "localhost")
+    let user = getEnv("QUMA_PGSQL_USER", "quma")
+    let pass = getEnv("QUMA_PGSQL_PASSWORD", "quma")
+    let db = getEnv("QUMA_PGSQL_DATABASE", "quma")
+    let port = getEnv("QUMA_PGSQL_PORT", "5432")
 
     if host.len == 0 or user.len == 0 or db.len == 0:
       return ""
@@ -40,7 +45,7 @@ when defined(qumaPostgres):
 
   suite "PostgreSQL Query":
     if skipTests:
-      echo "Skipping PostgreSQL tests: missing PGHOST, PGUSER, or PGDATABASE env vars"
+      echo "Skipping PostgreSQL tests: missing QUMA_PGSQL_HOST, QUMA_PGSQL_USER, or QUMA_PGSQL_DATABASE env vars"
 
     test "can execute script and fetch helpers":
       if skipTests:
