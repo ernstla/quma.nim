@@ -142,3 +142,70 @@ suite "SQLite Query":
     let results =
       cur.users.search(filterActive = true, active = 1, filterName = false).all()
     check results.len == 1
+
+  test "include simple SQL fragment":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+    cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
+
+    # searchWithSimpleInclude.nsql includes filters.inc.sql which adds "AND active = 1"
+    let results = cur.users.searchWithSimpleInclude().all()
+    check results.len == 1
+    check results[0][1] == "Ada"
+
+  test "include template with conditionals":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+    cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
+    cur.exec("insert into users(id, name, active) values (3, 'Ada', 0);")
+
+    # searchWithInclude.nsql includes activeFilter.inc.nsql which has {#if filterActive}
+    # No filter - get all 3
+    let all =
+      cur.users.searchWithInclude(filterActive = false, filterName = false).all()
+    check all.len == 3
+
+    # Filter by active via included template
+    let activeOnly = cur.users
+      .searchWithInclude(filterActive = true, active = 1, filterName = false)
+      .all()
+    check activeOnly.len == 1
+    check activeOnly[0][1] == "Ada"
+
+    # Filter by both (active from include, name from main template)
+    let activeAda = cur.users
+      .searchWithInclude(
+        filterActive = true, active = 1, filterName = true, name = "Ada"
+      )
+      .all()
+    check activeAda.len == 1
+
+  test "conditional include":
+    let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/sqlite")
+    let store = initFsScriptStore([sqlDir])
+    let db = initDatabase("sqlite:///:memory:", store)
+    let cur = db.cursor()
+
+    cur.exec("create table users(id int, name text, active int);")
+    cur.exec("insert into users(id, name, active) values (1, 'Ada', 1);")
+    cur.exec("insert into users(id, name, active) values (2, 'Bob', 0);")
+
+    # searchConditionalInclude.nsql: {#if useActiveFilter}{#include "filters.inc.sql"}{/if}
+    # Without the filter - get all 2
+    let all = cur.users.searchConditionalInclude(useActiveFilter = false).all()
+    check all.len == 2
+
+    # With the filter - include is processed, adds "AND active = 1"
+    let activeOnly = cur.users.searchConditionalInclude(useActiveFilter = true).all()
+    check activeOnly.len == 1
+    check activeOnly[0][1] == "Ada"
