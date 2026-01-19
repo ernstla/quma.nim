@@ -83,3 +83,34 @@ method getScript*(store: FsScriptStore, id: ScriptId): Script =
       return script
 
   raise newException(ScriptNotFoundError, "Script not found: " & id)
+
+proc resolveInclude*(store: FsScriptStore, path: string, currentDir: string): string =
+  ## Resolve an include file path and return its content.
+  ## Resolution order:
+  ## 1. Relative to currentDir (current script's directory)
+  ## 2. SQL roots in order (first match wins, so last-added root should be first in sqlDirs)
+  ##
+  ## If path has no extension, tries: .inc.nsql, .inc.sql, .nsql, .sql
+  let extensions =
+    if '.' in path:
+      @[""] # path already has extension
+    else:
+      @[".inc.nsql", ".inc.sql", ".nsql", ".sql"]
+
+  # Try relative to current directory first
+  for ext in extensions:
+    let candidate = normalizedPath(joinPath(currentDir, path & ext))
+    if fileExists(candidate):
+      return readFile(candidate)
+
+  # Try SQL roots (in order - first one wins)
+  for dir in store.sqlDirs:
+    for ext in extensions:
+      let candidate = normalizedPath(joinPath(dir, path & ext))
+      if fileExists(candidate):
+        return readFile(candidate)
+
+  raise newException(
+    ScriptNotFoundError,
+    "Include file not found: " & path & " (from " & currentDir & ")",
+  )

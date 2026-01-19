@@ -33,3 +33,19 @@ suite "Embedded Script Stores":
 
     let primaryOnly = store.getScript("only")
     check primaryOnly.origin.endsWith("tests/fixtures/sql/overlay/only.sql")
+
+  test "embedSqlDir excludes include files from discovery":
+    let store = embedSqlDir("fixtures/sql/embedded")
+
+    # Include files should not be discoverable as scripts
+    expect ScriptNotFoundError:
+      discard store.getScript("common.inc")
+
+    expect ScriptNotFoundError:
+      discard store.getScript("filter.inc")
+
+    expect ScriptNotFoundError:
+      discard store.getScript("common")
+
+    # Regular scripts should still work
+    check store.getScript("all").sql.contains("select 99")

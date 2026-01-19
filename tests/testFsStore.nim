@@ -77,3 +77,60 @@ suite "FsScriptStore":
 
     clearCache(store)
     check store.getScript("greeting").sql.contains("select 2")
+
+  test "resolveInclude finds include files":
+    let tempDir = createTempDir("quma_inc_", "")
+    let sqlDir = joinPath(tempDir, "sql")
+    createDir(sqlDir)
+
+    # Create include files
+    writeFile(joinPath(sqlDir, "header.inc.sql"), "-- Header\n")
+    writeFile(joinPath(sqlDir, "footer.inc.nsql"), "-- Footer\n")
+    writeFile(joinPath(sqlDir, "shared.sql"), "SELECT shared\n")
+
+    let store = initFsScriptStore([sqlDir])
+
+    # Direct include with extension
+    check store.resolveInclude("header.inc.sql", sqlDir).contains("Header")
+    check store.resolveInclude("footer.inc.nsql", sqlDir).contains("Footer")
+    check store.resolveInclude("shared.sql", sqlDir).contains("shared")
+
+    # Include without extension tries in order
+    check store.resolveInclude("header", sqlDir).contains("Header")
+    check store.resolveInclude("footer", sqlDir).contains("Footer")
+    check store.resolveInclude("shared", sqlDir).contains("shared")
+
+  test "resolveInclude relative to current script dir":
+    let tempDir = createTempDir("quma_inc_rel_", "")
+    let sqlDir = joinPath(tempDir, "sql")
+    let subDir = joinPath(sqlDir, "queries")
+    createDir(sqlDir)
+    createDir(subDir)
+
+    # Include in subdir
+    writeFile(joinPath(subDir, "local.inc.sql"), "-- Local\n")
+
+    let store = initFsScriptStore([sqlDir])
+
+    # Resolve from subdir
+    check store.resolveInclude("local.inc.sql", subDir).contains("Local")
+
+    # Not found from root
+    expect ScriptNotFoundError:
+      discard store.resolveInclude("local.inc.sql", sqlDir)
+
+  test "resolveInclude last added wins":
+    let tempDir = createTempDir("quma_inc_shadow_", "")
+    let baseDir = joinPath(tempDir, "base")
+    let overrideDir = joinPath(tempDir, "override")
+    createDir(baseDir)
+    createDir(overrideDir)
+
+    writeFile(joinPath(baseDir, "common.inc.sql"), "-- Base\n")
+    writeFile(joinPath(overrideDir, "common.inc.sql"), "-- Override\n")
+
+    # First dir wins (last added should come first in the list)
+    let store = initFsScriptStore([overrideDir, baseDir])
+    let content = store.resolveInclude("common.inc.sql", tempDir)
+    check content.contains("Override")
+    check not content.contains("Base")

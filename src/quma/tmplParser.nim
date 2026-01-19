@@ -51,6 +51,7 @@ type
   TmplNodeKind* = enum
     TmplText # raw text
     TmplIf # if/else-if/else block
+    TmplInclude # include directive
 
   ElseBranch* = object
     body*: seq[TmplNode]
@@ -70,6 +71,8 @@ type
       thenBranch*: seq[TmplNode]
       elseIfBranches*: seq[ElseIfBranch]
       elseBranch*: Option[ElseBranch]
+    of TmplInclude:
+      includePath*: string
 
 # Expression parser using recursive descent
 type ExprParser = object
@@ -365,6 +368,11 @@ proc parseNodes(p: var TmplParser): seq[TmplNode] =
       result.add TmplNode(kind: TmplText, text: blk.text, line: blk.line, col: blk.col)
     of TkIf:
       result.add p.parseIfBlock()
+    of TkInclude:
+      discard p.advance()
+      result.add TmplNode(
+        kind: TmplInclude, includePath: blk.includePath, line: blk.line, col: blk.col
+      )
     of TkElseIf, TkElse, TkEndIf:
       # These are handled by parseIfBlock, return to caller
       break

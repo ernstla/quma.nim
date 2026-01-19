@@ -237,3 +237,132 @@ WHERE city = 'Berlin'
     let vars3 = {"filterSize": toArgValue(true), "sizeOp": toArgValue("small")}.toTable
     let result3 = renderTemplate(tmpl, vars3)
     check "AND size < 100" in result3
+
+suite "Template Include Lexer":
+  test "lexes include with double quotes":
+    let blocks = lexTemplate("""{#include "header.inc.sql"}""")
+    check blocks.len == 1
+    check blocks[0].kind == TkInclude
+    check blocks[0].includePath == "header.inc.sql"
+
+  test "lexes include with single quotes":
+    let blocks = lexTemplate("{#include 'footer.inc.sql'}")
+    check blocks.len == 1
+    check blocks[0].kind == TkInclude
+    check blocks[0].includePath == "footer.inc.sql"
+
+  test "lexes include with path":
+    let blocks = lexTemplate("""{#include "partials/where.inc.sql"}""")
+    check blocks[0].includePath == "partials/where.inc.sql"
+
+  test "lexes include mixed with text and if":
+    let blocks = lexTemplate(
+      """SELECT * FROM users
+{#include "where.inc.sql"}
+{#if active}AND active = 1{/if}"""
+    )
+    # Text, Include, Text (newline), If, Text, EndIf
+    check blocks.len == 6
+    check blocks[0].kind == TkText
+    check blocks[1].kind == TkInclude
+    check blocks[2].kind == TkText # newline
+    check blocks[3].kind == TkIf
+    check blocks[4].kind == TkText
+    check blocks[5].kind == TkEndIf
+
+  test "errors on unterminated include path":
+    expect TemplateError:
+      discard lexTemplate("""{#include "unclosed}""")
+
+  test "errors on missing quotes":
+    expect TemplateError:
+      discard lexTemplate("{#include header.sql}")
+
+suite "Template Include Parser":
+  test "parses include node":
+    let nodes = parseTemplate("""{#include "header.inc.sql"}""")
+    check nodes.len == 1
+    check nodes[0].kind == TmplInclude
+    check nodes[0].includePath == "header.inc.sql"
+
+  test "parses include inside if":
+    let nodes = parseTemplate("""{#if admin}{#include "admin.sql"}{/if}""")
+    check nodes.len == 1
+    check nodes[0].kind == TmplIf
+    check nodes[0].thenBranch.len == 1
+    check nodes[0].thenBranch[0].kind == TmplInclude
+    check nodes[0].thenBranch[0].includePath == "admin.sql"
+
+suite "Template Include Evaluator":
+  # Create a simple resolver for testing
+  proc testResolver(path: string, currentDir: string): string =
+    case path
+    of "header.inc.sql":
+      "-- Header\n"
+    of "where.inc.sql":
+      "WHERE id = :id"
+    of "conditional.inc.nsql":
+      "{#if active}AND active = 1{/if}"
+    of "nested.inc.sql":
+      """{#include "header.inc.sql"}SELECT * FROM users"""
+    of "cycle_a.inc.sql":
+      """{#include "cycle_b.inc.sql"}"""
+    of "cycle_b.inc.sql":
+      """{#include "cycle_a.inc.sql"}"""
+    else:
+      raise newException(ScriptNotFoundError, "Include not found: " & path)
+
+  test "renders simple include":
+    let vars = initTable[string, ArgValue]()
+    let result = renderTemplate(
+      """SELECT * FROM users
+{#include "where.inc.sql"}""", vars, "test.nsql", "/test",
+      testResolver,
+    )
+    check result == "SELECT * FROM users\nWHERE id = :id"
+
+  test "renders include with template content":
+    let vars = {"active": toArgValue(true)}.toTable
+    let result = renderTemplate(
+      """{#include "conditional.inc.nsql"}""", vars, "test.nsql", "/test", testResolver
+    )
+    check result == "AND active = 1"
+
+  test "renders include conditionally":
+    let vars1 = {"showHeader": toArgValue(true)}.toTable
+    let result1 = renderTemplate(
+      """{#if showHeader}{#include "header.inc.sql"}{/if}SELECT 1""", vars1,
+      "test.nsql", "/test", testResolver,
+    )
+    check "-- Header" in result1
+
+    let vars2 = {"showHeader": toArgValue(false)}.toTable
+    let result2 = renderTemplate(
+      """{#if showHeader}{#include "header.inc.sql"}{/if}SELECT 1""", vars2,
+      "test.nsql", "/test", testResolver,
+    )
+    check "-- Header" notin result2
+
+  test "renders nested includes":
+    let vars = initTable[string, ArgValue]()
+    let result = renderTemplate(
+      """{#include "nested.inc.sql"}""", vars, "test.nsql", "/test", testResolver
+    )
+    check "-- Header" in result
+    check "SELECT * FROM users" in result
+
+  test "detects include cycles":
+    let vars = initTable[string, ArgValue]()
+    expect TemplateError:
+      discard renderTemplate(
+        """{#include "cycle_a.inc.sql"}""", vars, "test.nsql", "/test", testResolver
+      )
+
+  test "errors without resolver":
+    let vars = initTable[string, ArgValue]()
+    expect TemplateError:
+      discard renderTemplate("""{#include "header.inc.sql"}""", vars)
+
+  test "hasTemplateContent detects include":
+    check hasTemplateContent("""{#include "file.sql"}""") == true
+    check hasTemplateContent("SELECT * FROM users") == false

@@ -73,6 +73,7 @@ ORDER BY id
 | `{#if expr}...{/if}` | Conditional block |
 | `{:else if expr}` | Else-if branch |
 | `{:else}` | Else branch |
+| `{#include "path"}` | Include another file |
 
 ### Expression Language
 
@@ -114,6 +115,57 @@ let db = initDatabase("sqlite:///app.db", store, strictTemplates = true)
 ```
 
 In strict mode, template syntax in `.sql` files raises `TemplateError`.
+
+### Includes
+
+Use `{#include "path"}` to insert content from another file:
+
+```sql
+-- main.nsql
+SELECT * FROM users
+{#include "filters/active.inc.sql"}
+{#if role == 'admin'}
+  {#include "admin/extraFields.nsql"}
+{/if}
+ORDER BY id
+```
+
+#### Include File Extensions
+
+| Extension | Description |
+|-----------|-------------|
+| `.inc.sql` | Include-only SQL snippet (not callable as script) |
+| `.inc.nsql` | Include-only template snippet |
+| `.sql`, `.nsql` | Regular scripts (can also be included) |
+
+Files with `.inc.sql` or `.inc.nsql` extensions are excluded from script
+discovery, so they cannot be called directly via the cursor API. This lets you
+organize reusable SQL fragments without polluting the namespace.
+
+#### Resolution Order
+
+Include paths are resolved in this order:
+
+1. Relative to the current script's directory
+2. SQL roots in order (first match wins)
+
+If the path has no extension, quma tries: `.inc.nsql`, `.inc.sql`, `.nsql`, `.sql`
+
+#### Example Structure
+
+```text
+sql/
+  users/
+    all.nsql           # callable as db.cursor.users.all()
+    filters.inc.sql    # NOT callable, include-only
+  includes/
+    pagination.inc.sql # NOT callable (directory has no scripts)
+```
+
+#### Cycle Detection
+
+Circular includes are detected at runtime and raise `TemplateError` with the
+include chain for debugging.
 
 ## Embedded Scripts and Overrides
 

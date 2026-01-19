@@ -4,8 +4,9 @@ import ./errors
 
 proc hasTemplateContent*(sql: string): bool =
   ## Detects if SQL contains template syntax.
-  ## Currently checks for {#if, future: {#include
-  "{#if " in sql or "{#if\t" in sql or "{#if\n" in sql
+  ## Checks for {#if and {#include
+  "{#if " in sql or "{#if\t" in sql or "{#if\n" in sql or "{#include " in sql or
+    "{#include\t" in sql or "{#include\"" in sql
 
 type
   TmplTokenKind* = enum
@@ -14,6 +15,7 @@ type
     TkElseIf # {:else if
     TkElse # {:else}
     TkEndIf # {/if}
+    TkInclude # {#include "path"}
     TkIdent # variable name
     TkString # 'string' or "string"
     TkInt # 123
@@ -201,6 +203,7 @@ type TmplBlock* = object ## A parsed template block - either text or a control s
   kind*: TmplTokenKind
   text*: string # for TkText
   exprTokens*: seq[TmplToken] # for TkIf, TkElseIf (the condition tokens)
+  includePath*: string # for TkInclude
   line*: int
   col*: int
 
@@ -290,6 +293,53 @@ proc lexTemplate*(input: string): seq[TmplBlock] =
       for _ in 0 ..< 5:
         discard lex.advance()
       result.add TmplBlock(kind: TkEndIf, line: blockLine, col: blockCol)
+      textStart = lex.pos
+      textLine = lex.line
+      textCol = lex.col
+    elif lex.input.startsWithAt("{#include ", lex.pos) or
+        lex.input.startsWithAt("{#include\t", lex.pos) or
+        lex.input.startsWithAt("{#include\"", lex.pos):
+      # {#include "path"} or {#include 'path'}
+      if lex.pos > textStart:
+        result.add TmplBlock(
+          kind: TkText,
+          text: lex.input[textStart ..< lex.pos],
+          line: textLine,
+          col: textCol,
+        )
+      let blockLine = lex.line
+      let blockCol = lex.col
+      # Skip "{#include"
+      for _ in 0 ..< 9:
+        discard lex.advance()
+      lex.skipWhitespace()
+      # Expect a quoted string
+      let quote = lex.peek()
+      if quote != '"' and quote != '\'':
+        raise newException(
+          TemplateError, "Expected quoted string after {#include at line " & $blockLine
+        )
+      discard lex.advance() # consume opening quote
+      var path = ""
+      while not lex.atEnd() and lex.peek() != quote:
+        if lex.peek() == '\n':
+          raise newException(
+            TemplateError, "Unterminated include path at line " & $blockLine
+          )
+        path.add lex.advance()
+      if lex.atEnd():
+        raise
+          newException(TemplateError, "Unterminated include path at line " & $blockLine)
+      discard lex.advance() # consume closing quote
+      lex.skipWhitespace()
+      if lex.peek() != '}':
+        raise newException(
+          TemplateError, "Expected '}' after include path at line " & $blockLine
+        )
+      discard lex.advance() # consume '}'
+      result.add TmplBlock(
+        kind: TkInclude, includePath: path, line: blockLine, col: blockCol
+      )
       textStart = lex.pos
       textLine = lex.line
       textCol = lex.col

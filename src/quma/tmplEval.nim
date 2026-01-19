@@ -1,8 +1,22 @@
-import std/[tables, options]
+import std/[tables, options, os, strutils]
 
 import ./errors
 import ./args
 import ./tmplParser
+
+type
+  IncludeResolver* = proc(path: string, currentScriptDir: string): string
+    ## Callback to resolve and read include file content.
+    ## path: the include path from {#include "path"}
+    ## currentScriptDir: directory of the script containing the include
+    ## Returns the file content, or raises an error if not found.
+
+  RenderContext* = object
+    vars*: Table[string, ArgValue]
+    scriptName*: string
+    scriptDir*: string
+    resolver*: IncludeResolver
+    includeStack*: seq[string] # for cycle detection
 
 proc typeName(v: ArgValue): string =
   case v.kind
@@ -168,29 +182,95 @@ proc evalToBool*(
       makeError(scriptName, expr.line, "Condition must be bool, got " & typeName(val))
   val.b
 
-proc renderTemplate*(
-    nodes: seq[TmplNode], vars: Table[string, ArgValue], scriptName: string = ""
-): string =
+proc renderTemplateCtx*(nodes: seq[TmplNode], ctx: var RenderContext): string
+
+proc renderTemplateCtx*(nodes: seq[TmplNode], ctx: var RenderContext): string =
   result = ""
   for node in nodes:
     case node.kind
     of TmplText:
       result.add node.text
     of TmplIf:
-      if evalToBool(node.condition, vars, scriptName):
-        result.add renderTemplate(node.thenBranch, vars, scriptName)
+      if evalToBool(node.condition, ctx.vars, ctx.scriptName):
+        result.add renderTemplateCtx(node.thenBranch, ctx)
       else:
         var matched = false
         for branch in node.elseIfBranches:
-          if evalToBool(branch.condition, vars, scriptName):
-            result.add renderTemplate(branch.body, vars, scriptName)
+          if evalToBool(branch.condition, ctx.vars, ctx.scriptName):
+            result.add renderTemplateCtx(branch.body, ctx)
             matched = true
             break
         if not matched and node.elseBranch.isSome:
-          result.add renderTemplate(node.elseBranch.get.body, vars, scriptName)
+          result.add renderTemplateCtx(node.elseBranch.get.body, ctx)
+    of TmplInclude:
+      if ctx.resolver == nil:
+        raise makeError(
+          ctx.scriptName, node.line, "Include not supported: no resolver configured"
+        )
+      # Resolve the include path
+      let includePath = node.includePath
+      let resolvedPath =
+        if includePath.isAbsolute:
+          includePath
+        else:
+          normalizedPath(joinPath(ctx.scriptDir, includePath))
+      # Cycle detection
+      if resolvedPath in ctx.includeStack:
+        let cycle = ctx.includeStack.join(" -> ") & " -> " & resolvedPath
+        raise makeError(ctx.scriptName, node.line, "Include cycle detected: " & cycle)
+      # Resolve and read the include content
+      let includeContent = ctx.resolver(includePath, ctx.scriptDir)
+      # Parse and render the included template
+      let includeNodes = parseTemplate(includeContent, resolvedPath)
+      # Push to include stack and render
+      var childCtx = RenderContext(
+        vars: ctx.vars,
+        scriptName: resolvedPath,
+        scriptDir: splitFile(resolvedPath).dir,
+        resolver: ctx.resolver,
+        includeStack: ctx.includeStack & @[resolvedPath],
+      )
+      result.add renderTemplateCtx(includeNodes, childCtx)
+
+proc renderTemplate*(
+    nodes: seq[TmplNode], vars: Table[string, ArgValue], scriptName: string = ""
+): string =
+  ## Render without include support (legacy API)
+  var ctx = RenderContext(
+    vars: vars, scriptName: scriptName, scriptDir: "", resolver: nil, includeStack: @[]
+  )
+  renderTemplateCtx(nodes, ctx)
 
 proc renderTemplate*(
     templateStr: string, vars: Table[string, ArgValue], scriptName: string = ""
 ): string =
   let nodes = parseTemplate(templateStr, scriptName)
   renderTemplate(nodes, vars, scriptName)
+
+proc renderTemplate*(
+    nodes: seq[TmplNode],
+    vars: Table[string, ArgValue],
+    scriptName: string,
+    scriptDir: string,
+    resolver: IncludeResolver,
+): string =
+  ## Render with include support
+  var ctx = RenderContext(
+    vars: vars,
+    scriptName: scriptName,
+    scriptDir: scriptDir,
+    resolver: resolver,
+    includeStack: @[scriptName],
+  )
+  renderTemplateCtx(nodes, ctx)
+
+proc renderTemplate*(
+    templateStr: string,
+    vars: Table[string, ArgValue],
+    scriptName: string,
+    scriptDir: string,
+    resolver: IncludeResolver,
+): string =
+  ## Render with include support
+  let nodes = parseTemplate(templateStr, scriptName)
+  renderTemplate(nodes, vars, scriptName, scriptDir, resolver)

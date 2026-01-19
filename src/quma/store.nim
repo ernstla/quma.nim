@@ -25,6 +25,10 @@ type
     primary: ScriptStore
     fallback: ScriptStore
 
+proc isIncludeFile*(name: string): bool =
+  ## Check if a filename is an include file (.inc.sql or .inc.nsql)
+  name.endsWith(".inc.sql") or name.endsWith(".inc.nsql") or name.endsWith(".inc")
+
 proc makeScriptId*(segments: openArray[string]): ScriptId =
   segments.join("/")
 
@@ -101,8 +105,11 @@ macro embedSqlDir*(dir: static[string]): untyped =
     error("embedSqlDir path not found: " & normalized)
   var selected = initTable[string, tuple[path: string, ext: string]]()
   for path in walkDirRec(normalized):
-    let ext = splitFile(path).ext
+    let (_, fileName, ext) = splitFile(path)
     if ext != ".sql" and ext != ".nsql":
+      continue
+    # Skip include files - they are not discoverable as scripts
+    if isIncludeFile(fileName & ext):
       continue
     let relPath = relativePath(path, normalized)
     let (dirPart, name, _) = splitFile(relPath)
