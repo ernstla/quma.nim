@@ -3,7 +3,26 @@ import std/strutils
 import ./backend
 import ./errors
 import ./store
-import ./platform/sqlite
+
+# Compile-time backend selection:
+# - If any -d:qumaSqlite or -d:qumaPostgres flag is set, only include those backends
+# - If no flags are set, include all backends (default)
+
+const hasExplicitBackends =
+  defined(qumaSqlite) or defined(qumaPostgres) or defined(qumaMysql)
+
+# SQLite backend
+when not hasExplicitBackends or defined(qumaSqlite):
+  import ./platform/sqlite
+  const sqliteEnabled* = true
+else:
+  const sqliteEnabled* = false
+
+# PostgreSQL backend (placeholder for now)
+when not hasExplicitBackends or defined(qumaPostgres):
+  const postgresEnabled* = true
+else:
+  const postgresEnabled* = false
 
 type Database* = ref object
   uri: string
@@ -14,10 +33,26 @@ type Database* = ref object
 
 proc detectBackend(uri: string): DbBackend =
   ## Detects the appropriate backend based on the URI scheme.
-  if uri.startsWith("sqlite://"):
-    return initSqliteBackend()
+  when sqliteEnabled:
+    if uri.startsWith("sqlite://"):
+      return initSqliteBackend()
 
-  raise newException(QumaError, "Unsupported database URI scheme: " & uri)
+  when postgresEnabled:
+    if uri.startsWith("postgres://"):
+      raise
+        newException(QumaError, "PostgreSQL backend not yet implemented; URI: " & uri)
+
+  # Provide helpful error messages based on what's compiled in
+  var msg = "Unsupported database URI: " & uri
+  when hasExplicitBackends:
+    msg.add "\nCompiled backends: "
+    var backends: seq[string] = @[]
+    when sqliteEnabled:
+      backends.add "sqlite"
+    when postgresEnabled:
+      backends.add "postgres"
+    msg.add backends.join(", ")
+  raise newException(QumaError, msg)
 
 proc initDatabase*(
     uri: string, store: ScriptStore = nil, echo = false, strictTemplates = false

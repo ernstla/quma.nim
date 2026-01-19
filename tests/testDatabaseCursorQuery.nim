@@ -46,3 +46,7 @@ suite "quma":
 
     check a.named["active"].kind == avkBool
     check a.named["active"].b == true
+
+  test "unsupported URI scheme raises error":
+    expect QumaError:
+      discard initDatabase("mysql://localhost/db")
