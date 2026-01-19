@@ -8,8 +8,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - PostgreSQL backend support (`postgres://` URIs)
+- MySQL/MariaDB backend support (`mysql://`, `mariadb://` URIs)
 - Backend abstraction layer for multi-database support
-- Compile-time backend selection flags (`-d:qumaSqlite`, `-d:qumaPostgres`)
+- Compile-time backend selection flags (`-d:qumaSqlite`, `-d:qumaPostgres`, `-d:qumaMysql`)
 - Template include system (`{#include "path"}`) for reusable SQL fragments
 - Include-only file extensions (`.inc.sql`, `.inc.nsql`)
 - Cycle detection for circular includes

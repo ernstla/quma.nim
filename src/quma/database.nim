@@ -5,7 +5,7 @@ import ./errors
 import ./store
 
 # Compile-time backend selection:
-# - If any -d:qumaSqlite or -d:qumaPostgres flag is set, only include those backends
+# - If any -d:qumaSqlite, -d:qumaPostgres, or -d:qumaMysql flag is set, only include those backends
 # - If no flags are set, include all backends (default)
 
 const hasExplicitBackends =
@@ -25,6 +25,13 @@ when not hasExplicitBackends or defined(qumaPostgres):
 else:
   const postgresEnabled* = false
 
+# MySQL backend
+when not hasExplicitBackends or defined(qumaMysql):
+  import ./platform/mysql
+  const mysqlEnabled* = true
+else:
+  const mysqlEnabled* = false
+
 type Database* = ref object
   uri: string
   store: ScriptStore
@@ -42,6 +49,10 @@ proc detectBackend(uri: string): DbBackend =
     if uri.startsWith("postgres://"):
       return initPostgresBackend()
 
+  when mysqlEnabled:
+    if uri.startsWith("mysql://") or uri.startsWith("mariadb://"):
+      return initMysqlBackend()
+
   # Provide helpful error messages based on what's compiled in
   var msg = "Unsupported database URI: " & uri
   when hasExplicitBackends:
@@ -51,6 +62,8 @@ proc detectBackend(uri: string): DbBackend =
       backends.add "sqlite"
     when postgresEnabled:
       backends.add "postgres"
+    when mysqlEnabled:
+      backends.add "mysql"
     msg.add backends.join(", ")
   raise newException(QumaError, msg)
 

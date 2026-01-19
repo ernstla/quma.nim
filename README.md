@@ -20,7 +20,7 @@ The upstream repos are vendored (git-ignored) for reference:
   `*.sql.php` templates).
 - Provides a small query wrapper with convenience helpers like `one`, `all`,
   `first`, `exists`, and lazy execution/caching (conceptually).
-- Supports multiple database backends: SQLite, PostgreSQL (MySQL planned).
+- Supports multiple database backends: SQLite, PostgreSQL, MySQL/MariaDB.
 
 ## Database Backends
 
@@ -30,6 +30,7 @@ quma supports multiple database backends with compile-time selection:
 |---------|------------|--------------|
 | SQLite | `sqlite:///path` or `sqlite:///:memory:` | `-d:qumaSqlite` |
 | PostgreSQL | `postgres://user:pass@host:port/db` | `-d:qumaPostgres` |
+| MySQL/MariaDB | `mysql://user:pass@host:port/db` or `mariadb://...` | `-d:qumaMysql` |
 
 ### Compile-time Backend Selection
 
@@ -42,8 +43,11 @@ nim c -d:qumaSqlite myapp.nim
 # PostgreSQL only
 nim c -d:qumaPostgres myapp.nim
 
-# Both explicitly
-nim c -d:qumaSqlite -d:qumaPostgres myapp.nim
+# MySQL only
+nim c -d:qumaMysql myapp.nim
+
+# Multiple backends explicitly
+nim c -d:qumaSqlite -d:qumaPostgres -d:qumaMysql myapp.nim
 ```
 
 ### Usage Example
@@ -56,6 +60,12 @@ let sqliteDb = initDatabase("sqlite:///:memory:", store)
 
 # PostgreSQL
 let pgDb = initDatabase("postgres://user:pass@localhost:5432/mydb", store)
+
+# MySQL
+let mysqlDb = initDatabase("mysql://user:pass@localhost:3306/mydb", store)
+
+# MariaDB
+let mariadbDb = initDatabase("mariadb://user:pass@localhost:3306/mydb", store)
 ```
 
 ## SQL Directory Layout (Upstream Convention)

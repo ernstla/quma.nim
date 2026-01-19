@@ -49,4 +49,4 @@ suite "quma":
 
   test "unsupported URI scheme raises error":
     expect QumaError:
-      discard initDatabase("mysql://localhost/db")
+      discard initDatabase("oracle://localhost/db")
