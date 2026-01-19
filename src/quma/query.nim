@@ -1,24 +1,18 @@
 import std/[options, sequtils, strutils, macros]
 import ./args
+import ./backend
 import ./errors
-import ./store
+import ./types
+
+export backend.Row
+export types.ScriptId
 
 template qumaColumn*(name: string) {.pragma.}
 
 type
-  Row* = object
-    columns*: seq[string]
-    values*: seq[string]
-
   RowMapper*[T] = proc(row: Row): T
 
   CursorBase* = ref object of RootObj
-
-proc `[]`*(row: Row, index: int): string =
-  row.values[index]
-
-proc len*(row: Row): int =
-  row.values.len
 
 macro accessField(obj: typed, name: static string): untyped =
   newDotExpr(obj, ident(name))

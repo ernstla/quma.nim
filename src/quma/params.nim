@@ -1,110 +1,16 @@
-import std/[strutils, sets]
+import std/strutils
 
 import ./args
 import ./errors
+import ./sqlCompile
 
-type CompiledNamedSql* = object
-  sql*: string
-  names*: seq[string]
-  nameSet*: HashSet[string]
+export sqlCompile
+
+# Alias for backward compatibility
+type CompiledNamedSql* = CompiledSql
 
 proc initCompiledNamedSql*(): CompiledNamedSql =
-  ## Creates an empty CompiledNamedSql for uncompiled scripts.
-  CompiledNamedSql(sql: "", names: @[], nameSet: initHashSet[string]())
-
-proc compileNamedSql*(sql: string): CompiledNamedSql =
-  var outSql = newStringOfCap(sql.len)
-  var names: seq[string] = @[]
-  var nameSet = initHashSet[string]()
-
-  type State = enum
-    stNormal
-    stSingleQuote
-    stDoubleQuote
-    stLineComment
-    stBlockComment
-
-  var st = stNormal
-  var i = 0
-  while i < sql.len:
-    let c = sql[i]
-
-    case st
-    of stNormal:
-      if c == '\'':
-        outSql.add c
-        st = stSingleQuote
-        inc i
-        continue
-      if c == '"':
-        outSql.add c
-        st = stDoubleQuote
-        inc i
-        continue
-      if c == '-' and i + 1 < sql.len and sql[i + 1] == '-':
-        outSql.add "--"
-        st = stLineComment
-        i += 2
-        continue
-      if c == '/' and i + 1 < sql.len and sql[i + 1] == '*':
-        outSql.add "/*"
-        st = stBlockComment
-        i += 2
-        continue
-
-      if c == ':' and not (i > 0 and sql[i - 1] == ':'):
-        if i + 1 < sql.len:
-          let n0 = sql[i + 1]
-          if n0.isAlphaAscii or n0 == '_':
-            var j = i + 2
-            while j < sql.len and
-                (sql[j].isAlphaAscii or sql[j].isDigit or sql[j] == '_'):
-              inc j
-
-            let name = sql[(i + 1) ..< j]
-            names.add name
-            nameSet.incl name
-            outSql.add '?'
-            i = j
-            continue
-
-      outSql.add c
-      inc i
-    of stSingleQuote:
-      if c == '\'' and i + 1 < sql.len and sql[i + 1] == '\'':
-        outSql.add "''"
-        i += 2
-        continue
-
-      outSql.add c
-      inc i
-      if c == '\'':
-        st = stNormal
-    of stDoubleQuote:
-      if c == '"' and i + 1 < sql.len and sql[i + 1] == '"':
-        outSql.add "\"\""
-        i += 2
-        continue
-
-      outSql.add c
-      inc i
-      if c == '"':
-        st = stNormal
-    of stLineComment:
-      outSql.add c
-      inc i
-      if c == '\n':
-        st = stNormal
-    of stBlockComment:
-      if c == '*' and i + 1 < sql.len and sql[i + 1] == '/':
-        outSql.add "*/"
-        i += 2
-        st = stNormal
-      else:
-        outSql.add c
-        inc i
-
-  CompiledNamedSql(sql: outSql, names: names, nameSet: nameSet)
+  initCompiledSql()
 
 proc raiseMissingParam*(name: string, scriptId: string) {.noreturn.} =
   raise newException(
@@ -126,16 +32,33 @@ proc quoteValue(v: ArgValue): string =
     "'" & v.s.replace("'", "''") & "'"
 
 proc mogrify*(sql: string, bindValues: openArray[ArgValue]): string =
-  ## Returns SQL with ? placeholders replaced by quoted values (for display only).
+  ## Returns SQL with ? or $n placeholders replaced by quoted values (for display only).
   ## This is NOT safe for execution - only for debugging output.
   var output = newStringOfCap(sql.len + bindValues.len * 10)
   var paramIdx = 0
+  var i = 0
 
-  for c in sql:
+  while i < sql.len:
+    let c = sql[i]
+    # Handle ? placeholders
     if c == '?' and paramIdx < bindValues.len:
       output.add quoteValue(bindValues[paramIdx])
       inc paramIdx
+      inc i
+    # Handle $n placeholders (PostgreSQL style)
+    elif c == '$' and i + 1 < sql.len and sql[i + 1].isDigit:
+      var j = i + 1
+      while j < sql.len and sql[j].isDigit:
+        inc j
+      let numStr = sql[i + 1 ..< j]
+      let num = parseInt(numStr) - 1 # $1 is index 0
+      if num >= 0 and num < bindValues.len:
+        output.add quoteValue(bindValues[num])
+      else:
+        output.add sql[i ..< j]
+      i = j
     else:
       output.add c
+      inc i
 
   output

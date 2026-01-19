@@ -4,16 +4,17 @@ import std/macros
 import ./errors
 import ./params
 import ./tmplLexer
+import ./types
+
+export types.ScriptId
 
 type
-  ScriptId* = string
-
   Script* = object
     id*: ScriptId
     sql*: string
     isTemplate*: bool
     origin*: string
-    compiled*: CompiledNamedSql
+    compiled*: CompiledSql
 
   ScriptStore* = ref object of RootObj
 
@@ -234,7 +235,7 @@ macro embedSqlDir*(dir: static[string]): untyped =
       namesNode[1].add newLit(name)
     let compiledNode = newTree(
       nnkObjConstr,
-      ident"CompiledNamedSql",
+      ident"CompiledSql",
       newTree(nnkExprColonExpr, ident"sql", newLit(compiled.sql)),
       newTree(nnkExprColonExpr, ident"names", namesNode),
       newTree(nnkExprColonExpr, ident"nameSet", nameSetNode),

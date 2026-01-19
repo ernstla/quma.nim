@@ -4,10 +4,10 @@
 import std/[macros, os, tables, sets, strutils]
 
 import ./args
+import ./backend
 import ./errors
 import ./params
 import ./query
-import ./sqliteDb
 import ./store
 import ./tmplEval
 
@@ -16,7 +16,7 @@ import ./database
 type
   Cursor* = ref object of CursorBase
     db: Database
-    conn: SqliteConn
+    conn: DbConnection
 
   NamespaceRef* = object
     cursor: CursorBase
@@ -38,16 +38,17 @@ proc argKeyOrError(argNode: NimNode): string =
   identNameOrError(argNode, "named arg")
 
 proc cursor*(db: Database): Cursor =
-  let path = db.sqlitePathOrError()
-  Cursor(db: db, conn: openSqlite(path))
+  let conn = db.backend.openConnection(db.uri)
+  Cursor(db: db, conn: conn)
 
 proc database*(cur: Cursor): Database =
   cur.db
 
 proc close*(cur: Cursor) =
-  var c = cur.conn
-  c.close()
-  cur.conn = c
+  cur.db.backend.closeConnection(cur.conn)
+
+proc execBackend(cur: Cursor, sql: string, bindValues: seq[ArgValue]): seq[Row] =
+  cur.db.backend.execPrepared(cur.conn, sql, bindValues)
 
 proc echoSql(cur: Cursor, sql: string) =
   ## Prints SQL to stdout if echo is enabled on the database.
@@ -63,39 +64,37 @@ proc echoSql(cur: Cursor, sql: string, bindValues: openArray[ArgValue]) =
 
 proc exec*(cur: Cursor, sqlText: string) =
   ## Executes SQL without returning results.
-  discard cur.conn.execPrepared(sqlText)
+  discard cur.execBackend(sqlText, @[])
   cur.echoSql(sqlText)
 
 proc exec*(cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]) =
   ## Executes SQL with bind values, without returning results.
-  discard cur.conn.execPrepared(sqlText, bindValues)
+  discard cur.execBackend(sqlText, @bindValues)
   cur.echoSql(sqlText, bindValues)
 
 proc rawQuery*(cur: Cursor, sqlText: string): seq[Row] =
   ## Executes raw SQL and returns rows. For testing and low-level access.
-  result = cur.conn.execPrepared(sqlText)
+  result = cur.execBackend(sqlText, @[])
   cur.echoSql(sqlText)
 
 proc rawQuery*(
     cur: Cursor, sqlText: string, bindValues: openArray[ArgValue]
 ): seq[Row] =
   ## Executes raw SQL with bind values and returns rows. For testing and low-level access.
-  result = cur.conn.execPrepared(sqlText, bindValues)
+  result = cur.execBackend(sqlText, @bindValues)
   cur.echoSql(sqlText, bindValues)
 
 proc begin*(cur: Cursor) =
   ## Begins a transaction.
-  ## Note: Currently uses SQLite syntax. Other backends (PostgreSQL, MySQL)
-  ## may require different commands (e.g., START TRANSACTION).
-  cur.exec("begin")
+  cur.exec("BEGIN")
 
 proc commit*(cur: Cursor) =
   ## Commits the current transaction.
-  cur.exec("commit")
+  cur.exec("COMMIT")
 
 proc rollback*(cur: Cursor) =
   ## Rolls back the current transaction.
-  cur.exec("rollback")
+  cur.exec("ROLLBACK")
 
 template transaction*(cur: Cursor, body: untyped) =
   ## Executes `body` within a transaction. Commits on success, rolls back on
@@ -333,6 +332,9 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
         ": Template syntax in .sql file; use .nsql extension or disable strictTemplates",
     )
 
+  # Get backend's placeholder style for SQL compilation
+  let placeholderStyle = cur.db.backend.placeholderStyle
+
   # For templates, render first then compile the result
   let compiled =
     if script.isTemplate:
@@ -343,9 +345,19 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
 
       let renderedSql =
         renderTemplate(script.sql, scriptArgs.named, script.origin, scriptDir, resolver)
-      compileNamedSql(renderedSql)
+      compileNamedSql(renderedSql, placeholderStyle)
     else:
-      script.compiled
+      # Re-compile with correct placeholder style if needed
+      # For now, scripts are pre-compiled with ? placeholders
+      # This works for SQLite; for Postgres we need to recompile
+      if placeholderStyle == psQuestionMark:
+        CompiledSql(
+          sql: script.compiled.sql,
+          names: script.compiled.names,
+          nameSet: script.compiled.nameSet,
+        )
+      else:
+        compileNamedSql(script.sql, placeholderStyle)
 
   var filteredNamed = initTable[string, ArgValue]()
   for name in scriptArgs.named.keys:
@@ -358,6 +370,6 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
       raiseMissingParam(name, scriptId)
     bindValues.add filteredNamed[name]
 
-  let rows = cur.conn.execPrepared(compiled.sql, bindValues)
+  let rows = cur.execBackend(compiled.sql, bindValues)
   cur.echoSql(compiled.sql, bindValues)
   rows
