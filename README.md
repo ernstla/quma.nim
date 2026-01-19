@@ -76,9 +76,16 @@ variables with defaults so tests can run without extra configuration:
 | Backend | Env Vars (defaults) |
 |---------|---------------------|
 | PostgreSQL | `QUMA_PGSQL_HOST=localhost`, `QUMA_PGSQL_USER=quma`, `QUMA_PGSQL_PASSWORD=quma`, `QUMA_PGSQL_DATABASE=quma`, `QUMA_PGSQL_PORT=5432` |
-| MySQL/MariaDB | `QUMA_MYSQL_HOST=localhost`, `QUMA_MYSQL_USER=quma`, `QUMA_MYSQL_PASSWORD=quma`, `QUMA_MYSQL_DATABASE=quma`, `QUMA_MYSQL_PORT=3306`, `QUMA_MYSQL_SCHEME=mysql` |
+| MySQL/MariaDB | `QUMA_MYSQL_HOST=127.0.0.1`, `QUMA_MYSQL_USER=quma`, `QUMA_MYSQL_PASSWORD=quma`, `QUMA_MYSQL_DATABASE=quma`, `QUMA_MYSQL_PORT=3306`, `QUMA_MYSQL_SCHEME=mysql` |
 
 Set these variables if your local test database uses different credentials.
+
+### macOS Test RPATHs
+
+On macOS, `tests/config.nims` adds `-Wl,-rpath` entries for Homebrew installs
+so `nim r` can load `libpq` and `libmysqlclient` without manual `DYLD_*` setup.
+If your libraries live elsewhere, set `DYLD_LIBRARY_PATH` or adjust the paths
+in `tests/config.nims`.
 
 ## SQL Directory Layout (Upstream Convention)
 

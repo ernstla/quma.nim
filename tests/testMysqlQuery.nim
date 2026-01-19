@@ -3,7 +3,7 @@
 ## These tests require:
 ## 1. Compile with -d:qumaMysql flag
 ## 2. Environment variables:
-##    - QUMA_MYSQL_HOST (default: localhost)
+##    - QUMA_MYSQL_HOST (default: 127.0.0.1)
 ##    - QUMA_MYSQL_USER (default: quma)
 ##    - QUMA_MYSQL_PASSWORD (default: quma)
 ##    - QUMA_MYSQL_DATABASE (default: quma)
@@ -20,7 +20,7 @@ when defined(qumaMysql):
 
   proc getMysqlUri(): string =
     ## Builds a mysql:// URI from environment variables.
-    let host = getEnv("QUMA_MYSQL_HOST", "localhost")
+    let host = getEnv("QUMA_MYSQL_HOST", "127.0.0.1")
     let user = getEnv("QUMA_MYSQL_USER", "quma")
     let pass = getEnv("QUMA_MYSQL_PASSWORD", "quma")
     let db = getEnv("QUMA_MYSQL_DATABASE", "quma")

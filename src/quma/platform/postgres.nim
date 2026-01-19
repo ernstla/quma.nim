@@ -40,7 +40,7 @@ proc parsePostgresUri(
   )
 
 method placeholderStyle*(backend: PostgresBackend): PlaceholderStyle =
-  psDollarNumber
+  psQuestionMark
 
 method openConnection*(backend: PostgresBackend, uri: string): DbConnection =
   let params = parsePostgresUri(uri)
@@ -68,6 +68,22 @@ proc toBindArgs(bindValues: seq[ArgValue]): seq[string] =
       # PostgreSQL uses 't'/'f' or 'true'/'false' for booleans
       result.add (if v.b: "t" else: "f")
 
+proc isSelectLike(sql: string): bool =
+  let lowered = sql.strip().toLowerAscii()
+  if lowered.len == 0:
+    return false
+
+  if lowered.startsWith("select") or lowered.startsWith("with") or
+      lowered.startsWith("show") or lowered.startsWith("describe") or
+      lowered.startsWith("explain"):
+    return true
+
+  if lowered.startsWith("insert") or lowered.startsWith("update") or
+      lowered.startsWith("delete"):
+    return lowered.contains(" returning ")
+
+  false
+
 method execPrepared*(
     backend: PostgresBackend, conn: DbConnection, sql: string, bindValues: seq[ArgValue]
 ): seq[qumaBackend.Row] =
@@ -78,11 +94,26 @@ method execPrepared*(
   var columns: postgres.DbColumns
   var rows: seq[qumaBackend.Row] = @[]
 
-  # Use instantRows with column info to get column names
-  for row in pgConn.handle.instantRows(columns, sql(sql), toBindArgs(bindValues)):
-    var values = newSeq[string](row.len)
-    for i in 0 ..< row.len:
-      values[i] = row[i]
-    rows.add qumaBackend.Row(columns: columns.mapIt(it.name), values: values)
+  let q = postgres.sql(sql)
+  let args = toBindArgs(bindValues)
+
+  if isSelectLike(sql):
+    if args.len == 0:
+      for row in pgConn.handle.instantRows(columns, q):
+        var values = newSeq[string](row.len)
+        for i in 0 ..< row.len:
+          values[i] = row[i]
+        rows.add qumaBackend.Row(columns: columns.mapIt(it.name), values: values)
+    else:
+      for row in pgConn.handle.instantRows(columns, q, args):
+        var values = newSeq[string](row.len)
+        for i in 0 ..< row.len:
+          values[i] = row[i]
+        rows.add qumaBackend.Row(columns: columns.mapIt(it.name), values: values)
+  else:
+    if args.len == 0:
+      pgConn.handle.exec(q)
+    else:
+      pgConn.handle.exec(q, args)
 
   rows
