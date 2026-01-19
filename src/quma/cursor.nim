@@ -1,7 +1,7 @@
 {.experimental: "dotOperators".}
 {.experimental: "callOperator".}
 
-import std/[macros, tables, sets, strutils]
+import std/[macros, os, tables, sets, strutils]
 
 import ./args
 import ./errors
@@ -336,7 +336,13 @@ method execute*(cur: Cursor, scriptId: ScriptId, scriptArgs: ScriptArgs): seq[Ro
   # For templates, render first then compile the result
   let compiled =
     if script.isTemplate:
-      let renderedSql = renderTemplate(script.sql, scriptArgs.named, scriptId)
+      # Create include resolver that uses the store
+      let scriptDir = splitFile(script.origin).dir
+      proc resolver(path: string, currentDir: string): string =
+        store.resolveInclude(path, currentDir)
+
+      let renderedSql =
+        renderTemplate(script.sql, scriptArgs.named, script.origin, scriptDir, resolver)
       compileNamedSql(renderedSql)
     else:
       script.compiled

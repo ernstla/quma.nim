@@ -84,7 +84,7 @@ method getScript*(store: FsScriptStore, id: ScriptId): Script =
 
   raise newException(ScriptNotFoundError, "Script not found: " & id)
 
-proc resolveInclude*(store: FsScriptStore, path: string, currentDir: string): string =
+method resolveInclude*(store: FsScriptStore, path: string, currentDir: string): string =
   ## Resolve an include file path and return its content.
   ## Resolution order:
   ## 1. Relative to currentDir (current script's directory)
