@@ -64,7 +64,7 @@ proc flagsForBackends(backends: seq[string]): string =
   " " & flags.join(" ")
 
 proc runTests(flags: string) =
-  let tests = staticExec("ls tests/t*.nim").strip
+  let tests = staticExec("ls tests/test*.nim").strip
   if tests.len == 0:
     quit("No tests found.")
 
