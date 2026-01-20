@@ -45,7 +45,21 @@ proc selectedBackends(): seq[string] =
   let args = parseBackendArgs()
   if args.len > 0:
     return args
-  compileBackends()
+  let compiled = compileBackends()
+  if compiled.len > 0:
+    return compiled
+  @["sqlite"]
+
+proc testEnabled(testFile: string, backends: seq[string]): bool =
+  let name = splitFile(testFile).name.toLowerAscii()
+  let hasSqlite = "sqlite" in backends
+  let hasMysql = "mysql" in backends
+  let hasPostgres = "postgres" in backends
+  if "mysql" in name:
+    return hasMysql
+  if "postgres" in name:
+    return hasPostgres
+  hasSqlite
 
 proc flagsForBackends(backends: seq[string]): string =
   var flags: seq[string] = @[]
@@ -63,18 +77,22 @@ proc flagsForBackends(backends: seq[string]): string =
     return ""
   " " & flags.join(" ")
 
-proc runTests(flags: string) =
+proc runTests(backends: seq[string], flags: string) =
   let tests = staticExec("ls tests/test*.nim").strip
   if tests.len == 0:
     quit("No tests found.")
 
+  var selected: seq[string] = @[]
   for testFile in tests.splitWhitespace:
+    if testEnabled(testFile, backends):
+      selected.add testFile
+
+  if selected.len == 0:
+    quit("No tests selected. Enable sqlite, postgres, mysql, or all.")
+
+  for testFile in selected:
     exec "nim r" & flags & " " & testFile
 
 task test, "Run all unit tests":
-  var backends = selectedBackends()
-  if backends.len == 0:
-    addUnique(backends, "sqlite")
-  if "sqlite" notin backends:
-    addUnique(backends, "sqlite")
-  runTests(flagsForBackends(backends))
+  let backends = selectedBackends()
+  runTests(backends, flagsForBackends(backends))

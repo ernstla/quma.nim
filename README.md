@@ -71,7 +71,9 @@ let mariadbDb = initDatabase("mariadb://user:pass@localhost:3306/mydb", store)
 ### Test Database Defaults
 
 The PostgreSQL and MySQL integration tests use `QUMA_`-prefixed environment
-variables with defaults so tests can run without extra configuration:
+variables with defaults for connection. When the backend is enabled, tests will
+attempt to connect using these defaults; ensure the database services are
+running or override the values below.
 
 | Backend | Env Vars (defaults) |
 |---------|---------------------|
@@ -79,6 +81,8 @@ variables with defaults so tests can run without extra configuration:
 | MySQL/MariaDB | `QUMA_MYSQL_HOST=127.0.0.1`, `QUMA_MYSQL_USER=quma`, `QUMA_MYSQL_PASSWORD=quma`, `QUMA_MYSQL_DATABASE=quma`, `QUMA_MYSQL_PORT=3306`, `QUMA_MYSQL_SCHEME=mysql` |
 
 Set these variables if your local test database uses different credentials.
+If you do not want integration tests to run, avoid enabling the corresponding
+backend flag during compilation.
 
 ### macOS Test RPATHs
 
@@ -256,6 +260,8 @@ let db = initDatabase("sqlite:///:memory:", store)
 - Run tests (sqlite default): `nimble test` or `nim test`
 - Enable more backends in tests: `QUMA_TEST_BACKENDS=all nimble test` or `nim test all`
 - Pass backend args to test task: `nim test mysql`, `nim test sqlite mysql`, or `nim test all`
+- Non-mysql/postgres tests require the sqlite flag; use `nim test sqlite mysql` to run core tests plus MySQL.
+- Integration tests run whenever their backend flag is enabled; ensure Postgres/MySQL are running before `nim test all`.
 
 ## License
 

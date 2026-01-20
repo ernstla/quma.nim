@@ -2,7 +2,7 @@
 ##
 ## These tests require:
 ## 1. Compile with -d:qumaPostgres flag
-## 2. Environment variables:
+## 2. A running Postgres instance reachable via:
 ##    - QUMA_PGSQL_HOST (default: localhost)
 ##    - QUMA_PGSQL_USER (default: quma)
 ##    - QUMA_PGSQL_PASSWORD (default: quma)
@@ -25,16 +25,12 @@ when defined(qumaPostgres):
     let db = getEnv("QUMA_PGSQL_DATABASE", "quma")
     let port = getEnv("QUMA_PGSQL_PORT", "5432")
 
-    if host.len == 0 or user.len == 0 or db.len == 0:
-      return ""
-
     result = "postgres://" & user
     if pass.len > 0:
       result.add ":" & pass
     result.add "@" & host & ":" & port & "/" & db
 
   let pgUri = getPostgresUri()
-  let skipTests = pgUri.len == 0
 
   type UserId = object
     id: int
@@ -44,83 +40,71 @@ when defined(qumaPostgres):
     name: string
 
   suite "PostgreSQL Query":
-    if skipTests:
-      echo "Skipping PostgreSQL tests: missing QUMA_PGSQL_HOST, QUMA_PGSQL_USER, or QUMA_PGSQL_DATABASE env vars"
-
     test "can execute script and fetch helpers":
-      if skipTests:
-        skip()
-      else:
-        let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
-        let store = initFsScriptStore([sqlDir])
+      let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
+      let store = initFsScriptStore([sqlDir])
 
-        let db = initDatabase(pgUri, store)
-        let cur = db.cursor()
+      let db = initDatabase(pgUri, store)
+      let cur = db.cursor()
 
-        # Setup - use temp table to avoid polluting database
-        cur.exec("drop table if exists users;")
-        cur.exec("create table users(id int, name text);")
-        cur.exec("insert into users(id, name) values (1, 'Ada');")
-        cur.exec("insert into users(id, name) values (2, 'Bob');")
+      # Setup - use temp table to avoid polluting database
+      cur.exec("drop table if exists users;")
+      cur.exec("create table users(id int, name text);")
+      cur.exec("insert into users(id, name) values (1, 'Ada');")
+      cur.exec("insert into users(id, name) values (2, 'Bob');")
 
-        expect QueryNoRowsError:
-          discard cur.users.getById(id = 999, name = "Ada").one()
+      expect QueryNoRowsError:
+        discard cur.users.getById(id = 999, name = "Ada").one()
 
-        expect QueryTooManyRowsError:
-          discard cur.users.all().one()
+      expect QueryTooManyRowsError:
+        discard cur.users.all().one()
 
-        # Cleanup
-        cur.exec("drop table users;")
+      # Cleanup
+      cur.exec("drop table users;")
 
     test "named param compilation to positional binds":
-      if skipTests:
-        skip()
-      else:
-        let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
-        let store = initFsScriptStore([sqlDir])
-        let db = initDatabase(pgUri, store)
-        let cur = db.cursor()
+      let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
+      let store = initFsScriptStore([sqlDir])
+      let db = initDatabase(pgUri, store)
+      let cur = db.cursor()
 
-        cur.exec("drop table if exists users;")
-        cur.exec("create table users(id int, name text);")
-        cur.exec("insert into users(id, name) values (1, 'Ada');")
-        cur.exec("insert into users(id, name) values (2, 'Bob');")
+      cur.exec("drop table if exists users;")
+      cur.exec("create table users(id int, name text);")
+      cur.exec("insert into users(id, name) values (1, 'Ada');")
+      cur.exec("insert into users(id, name) values (2, 'Bob');")
 
-        let r = cur.users.getById(id = 1, name = "Ada", extra = "ignore").one()
-        check r[0] == "1"
+      let r = cur.users.getById(id = 1, name = "Ada", extra = "ignore").one()
+      check r[0] == "1"
 
-        expect QueryError:
-          discard cur.users.getById().one()
+      expect QueryError:
+        discard cur.users.getById().one()
 
-        cur.exec("drop table users;")
+      cur.exec("drop table users;")
 
     test "typed query mapping":
-      if skipTests:
-        skip()
-      else:
-        let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
-        let store = initFsScriptStore([sqlDir])
-        let db = initDatabase(pgUri, store)
-        let cur = db.cursor()
+      let sqlDir = joinPath(getCurrentDir(), "tests/fixtures/sql/postgres")
+      let store = initFsScriptStore([sqlDir])
+      let db = initDatabase(pgUri, store)
+      let cur = db.cursor()
 
-        cur.exec("drop table if exists users;")
-        cur.exec("create table users(id int, name text);")
-        cur.exec("insert into users(id, name) values (1, 'Ada');")
-        cur.exec("insert into users(id, name) values (2, 'Bob');")
+      cur.exec("drop table if exists users;")
+      cur.exec("create table users(id int, name text);")
+      cur.exec("insert into users(id, name) values (1, 'Ada');")
+      cur.exec("insert into users(id, name) values (2, 'Bob');")
 
-        let ids = cur.users.all[UserId]().all()
-        check ids.len == 2
-        check ids[0].id == 1
+      let ids = cur.users.all[UserId]().all()
+      check ids.len == 2
+      check ids[0].id == 1
 
-        let profile = cur.users.allProfiles[UserProfile]().first()
-        check profile.isSome
-        check profile.get.id == 1
-        check profile.get.name == "Ada"
+      let profile = cur.users.allProfiles[UserProfile]().first()
+      check profile.isSome
+      check profile.get.id == 1
+      check profile.get.name == "Ada"
 
-        let missing = cur.users.getById(id = 999, name = "Ada").first()
-        check missing.isNone
+      let missing = cur.users.getById(id = 999, name = "Ada").first()
+      check missing.isNone
 
-        cur.exec("drop table users;")
+      cur.exec("drop table users;")
 else:
   # When qumaPostgres is not defined, provide a stub so the test file compiles
   suite "PostgreSQL Query (disabled)":
